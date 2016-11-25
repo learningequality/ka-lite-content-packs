@@ -60,6 +60,8 @@ xh: pex
 ta: pex
 	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ta 0.16 --out=out/langpacks/ta.zip --no-assessment-resource
 
+ar: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ar 0.16 --out=out/langpacks/ar.zip --no-assessment-resource
 
 all: supported
 

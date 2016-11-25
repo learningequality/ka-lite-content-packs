@@ -163,3 +163,6 @@ def main():
     logging.info("Saving data to %s" % DUBBED_VIDEOS_MAPPING_FILEPATH)
     with open(DUBBED_VIDEOS_MAPPING_FILEPATH, "w") as fp:
         json.dump(raw_map, fp)
+        
+if __name__ == "__main__":
+    main()
