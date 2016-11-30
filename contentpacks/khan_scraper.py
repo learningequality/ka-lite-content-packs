@@ -49,9 +49,25 @@ def _ensure_dir(path):
             pass  # directory already exists
         else:
             raise
+        
+        
+def get_khan_url(langcode_list=None):
+    khan_url_list = []
+    for langcode in langcode_list:
+        khan_url = "https://%s.khanacademy.org" % langcode
+        khan_url_list.append(khan_url)
+    return khan_url_list
 
-def get_langcode_list():
-    pass
+
+def get__all_langcode_list():
+    try:
+        languagelookup = os.path.join(PROJECT_PATH, "resources/languagelookup.json")
+        with open(languagelookup, 'r') as f:
+            language_codes = ujson.load(f)
+        return language_codes.keys()
+    except KeyError:
+        logging.warning("No name found for {}. Defaulting to an empty string.".format())
+        return ""
         
 
 def convert_to_json(lang_url, lang_code):
@@ -70,9 +86,8 @@ def check_subjects_in_en_data(lang_code=None, force=False,):
     convert_to_json(lang_url, lang_code )
     en_url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
     convert_to_json(en_url, EN_LANG_CODE)
-    
-        
-        
+       
+                   
 def generate_en_video_lookup():
     if os.path.exists(os.path.join(BUILD_PATH, "dubbed_video_mappings.json")):
         logging.info('Dubbed videos json already exist at %s' % (DUBBED_VIDEOS_MAPPING_FILEPATH))
@@ -107,7 +122,7 @@ def _scrape_subject(url):
     return subjects
 
 
-def access_google_spreadsheet():
+def _access_google_spreadsheet():
     _ensure_dir(os.path.dirname(GOOGLE_CREDENTIAL_PATH))
     scope = ['https://spreadsheets.google.com/feeds']
     credentials = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIAL_PATH, scope)
@@ -116,36 +131,46 @@ def access_google_spreadsheet():
     return sheet
     
 
-def map_spreadsheet_values(urls=None, spreadsheet=None):
-    subject_data_list = []
-    for url in urls:
+def map_spreadsheet_values(update_all=False, spreadsheet=None):
+    khan_urls = KHAN_URL
+    update_all = True
+    if update_all:
+        # Get all the lang code and update it all
+        langcode_list = get__all_langcode_list()
+        khan_urls = get_khan_url(langcode_list)
+    for url in khan_urls:
+        subject_data_list = []
         subjects = _scrape_subject(url)
         for subject in subjects:
             dubbed_youtube_ids = _get_youtubes_ids(subject)
             subject_data_dict = _create_data_struct(subject=subject.text, youtube_id=dubbed_youtube_ids)
             subject_data_list.append(subject_data_dict)
-    _as_column = spreadsheet.find("KISWAHILI")
-    for subject_data in subject_data_list:
-        subject_title = subject_data.get("title")
-        subject_youtub_id = subject_data.get("youtube_id")
-        
-        # Mapping of row and column
-        try:
-            _as_row = spreadsheet.find(subject_title)
-            print("value: (%s) col: (%s) row: (%s)" % (_as_column.value, _as_column.col, _as_column.row))
-            print("value: (%s) col: (%s) row: (%s)" % (_as_row.value, _as_row.col, _as_row.row))
-            spreadsheet.update_cell(_as_row.row, _as_column.col, subject_youtub_id)
-        except Exception as e:
-            print(e)
-    return subject_data_list
+            
+        _as_column = spreadsheet.find("KISWAHILI")
+        for subject_data in subject_data_list:
+            subject_title = subject_data.get("title")
+            subject_youtub_id = subject_data.get("youtube_id")
+            print("langcode: %s subject: %s subject_youtub_id: %s" % (url, subject_title, subject_youtub_id))
+            
+            # Mapping of row and column
+            try:
+                _as_row = spreadsheet.find(subject_title)
+                print("value: (%s) col: (%s) row: (%s)" % (_as_column.value, _as_column.col, _as_column.row))
+                print("value: (%s) col: (%s) row: (%s)" % (_as_row.value, _as_row.col, _as_row.row))
+                spreadsheet.update_cell(_as_row.row, _as_column.col, subject_youtub_id)
+            except Exception as e:
+                print(e)
 
 
 def main():
-    khan_url = KHAN_URL
     check_subjects_in_en_data()
     generate_en_video_lookup()
-    spreadsheet = access_google_spreadsheet()
-    map_spreadsheet_values(urls=khan_url, spreadsheet=spreadsheet)
+    spreadsheet = _access_google_spreadsheet()
+    map_spreadsheet_values(spreadsheet=spreadsheet)
+    map_spreadsheet_values()
+    
+
+
 
 
 if __name__ == "__main__":
