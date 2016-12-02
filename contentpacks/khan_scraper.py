@@ -3,6 +3,7 @@ TODOS(Eduard James Aban):
 * Create new spreadsheet and dump all the updated subjects to the Gdoc.
 * Check the English data then compare it on the selected language.
 * Check another option using the youtube playlist as source of dubbed video mappings.
+* Check the khan locale names used so we can write it on the spreadsheet.
 """
 
 import errno
@@ -20,8 +21,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 from urllib.request import urlopen
 from contentpacks.generate_dubbed_video_mappings import main as generate_dubbed_video_mappings
 from contentpacks.khanacademy import PROJECTION_KEYS, API_URL, KA_DOMAIN, download_and_clean_kalite_data
-
-
+from contentpacks.utils import get_lang_name, get_lang_native_name, get_lang_code_list, get_lang_ka_name
+from contentpacks.utils import NodeType
 
 # Reference https://github.com/burnash/gspread
 # https://github.com/burnash/gspread/issues/201
@@ -34,6 +35,15 @@ GOOGLE_CREDENTIAL_PATH = os.path.join(BUILD_PATH, "credential", 'credentials.jso
 DUBBED_VIDEOS_MAPPING_FILEPATH = os.path.join(BUILD_PATH, "dubbed_video_mappings.json")
 EN_LANGUAGELOOKUP = "english"
 EN_LANG_CODE = "en"
+BUILD_VERSION = "0.17.x"
+SPREADSHEET_DEFAULT_VALUE = [
+    "SERIAL", "DATE ADDED", "DATE CREATED", "TITLE", "LICENSE", "DOMAIN", "SUBJECT", "TOPIC", "TUTORIAL", "TITLE ID",
+    "URL", "DURATION", "REQUIRED FOR", "TRANSCRIPT", "ENGLISH", "ARABIC", "ARMENIAN", "BENGALI", "BAHASA INDONESIA", "BANGLA BULGARIAN",
+    "CHINESE", "CZECH", "DANISH	DARI", "DEUTSCH", "ESPANOL", "FARSI" "FRANCAIS", "GREEK", "HEBREW", "HINDI", "ITALIANO",
+    "JAPANESE", "KISWAHILI", "KOREAN", "MONGOLIAN",	"NEDERLANDS", "NEPALI", "NORSK", "POLISH", "PORTUGUES",
+    "PORTUGAL PORTUGUES", "PUNJABI", "RUSSIAN",  "SERBIAN", "SINDHI", "SINHALA", "TAMIL", "TELUGU", "THAI",
+    "TURKCE", "UKRAINIAN", "URDU", "XHOSA", "ZULU"
+    ]
 
 
 def _ensure_dir(path):
@@ -50,25 +60,6 @@ def _ensure_dir(path):
         else:
             raise
         
-        
-def get_khan_url(langcode_list=None):
-    khan_url_list = []
-    for langcode in langcode_list:
-        khan_url = "https://%s.khanacademy.org" % langcode
-        khan_url_list.append(khan_url)
-    return khan_url_list
-
-
-def get__all_langcode_list():
-    try:
-        languagelookup = os.path.join(PROJECT_PATH, "resources/languagelookup.json")
-        with open(languagelookup, 'r') as f:
-            language_codes = ujson.load(f)
-        return language_codes.keys()
-    except KeyError:
-        logging.warning("No name found for {}. Defaulting to an empty string.".format())
-        return ""
-        
 
 def convert_to_json(lang_url, lang_code):
     data = requests.get(lang_url)
@@ -81,25 +72,11 @@ def convert_to_json(lang_url, lang_code):
 def check_subjects_in_en_data(lang_code=None, force=False,):
     _ensure_dir(BUILD_PATH)
     projection = json.dumps(PROJECTION_KEYS)
-    lang_code = "ar"
     lang_url = API_URL.format(projection=projection, lang=lang_code, ka_domain=KA_DOMAIN)
     convert_to_json(lang_url, lang_code )
     en_url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
     convert_to_json(en_url, EN_LANG_CODE)
        
-                   
-def generate_en_video_lookup():
-    if os.path.exists(os.path.join(BUILD_PATH, "dubbed_video_mappings.json")):
-        logging.info('Dubbed videos json already exist at %s' % (DUBBED_VIDEOS_MAPPING_FILEPATH))
-    else:
-        generate_dubbed_video_mappings()
-    dubbed_videos_path = os.path.join(BUILD_PATH, "dubbed_video_mappings.json")
-    with open(dubbed_videos_path, 'r') as f:
-        dubbed_videos_load = ujson.load(f)
-    video_dict = dubbed_videos_load.get(EN_LANGUAGELOOKUP)
-    en_video_list = video_dict.keys()
-    return en_video_list
-
 
 def _create_data_struct(subject=None, youtube_id=None):
     dict_data = {
@@ -115,6 +92,15 @@ def _get_youtubes_ids(subjects):
         return youtube_id
 
 
+def _access_google_spreadsheet():
+    _ensure_dir(os.path.dirname(GOOGLE_CREDENTIAL_PATH))
+    scope = ['https://spreadsheets.google.com/feeds']
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIAL_PATH, scope)
+    gcreadentials = gspread.authorize(credentials)
+    sheet = gcreadentials.open_by_url("https://docs.google.com/spreadsheets/d/1q9fVt5cxkR7dI7uLR1klGDK7XHjjeSvBoWYilkDqE50/edit#gid=0")
+    return sheet
+
+
 def _scrape_subject(url):
     url_obj = urlopen(url).read()
     soup = BeautifulSoup(url_obj)
@@ -122,52 +108,94 @@ def _scrape_subject(url):
     return subjects
 
 
-def _access_google_spreadsheet():
-    _ensure_dir(os.path.dirname(GOOGLE_CREDENTIAL_PATH))
-    scope = ['https://spreadsheets.google.com/feeds']
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIAL_PATH, scope)
-    gcreadentials = gspread.authorize(credentials)
-    sheet = gcreadentials.open_by_url("https://docs.google.com/spreadsheets/d/1FpW_nDb3KaydTFo4TGuPvuPPTS_fkekkID4TxletYmo/edit#gid=0").sheet1
-    return sheet
-    
 
-def map_spreadsheet_values(update_all=False, spreadsheet=None):
-    khan_urls = KHAN_URL
-    update_all = True
-    if update_all:
-        # Get all the lang code and update it all
-        langcode_list = get__all_langcode_list()
-        khan_urls = get_khan_url(langcode_list)
-    for url in khan_urls:
+def get_en_data():
+    BUILD_PATH = "/Users/mrpau-eduard/content-pack-maker/build"
+    languagelookup = os.path.join(BUILD_PATH, "en_nodes.json")
+    en_item_data = []
+    with open(languagelookup, 'r') as f:
+        en_data = ujson.load(f)
+    for item in en_data:
+        if item["kind"] == NodeType.video:
+            en_item_data.append(item)
+    return en_item_data
+
+
+def get_all_languagelookup_data():
+    languagelookup = os.path.join(PROJECT_PATH, "resources/ka_language_support.json")
+    with open(languagelookup, 'r') as f:
+        language_codes = ujson.load(f)
+    return language_codes
+
+
+def create_new_sheet(spreadsheet):
+    # Create New worksheet
+    try:
+        spreadsheet.add_worksheet(title=BUILD_VERSION, rows=10000, cols=100)
+    except Exception as e:
+        logging.info(e)
+    # Update sheet with the dafaut header value
+    sheet = spreadsheet.worksheet(BUILD_VERSION)
+    for index, val in enumerate((SPREADSHEET_DEFAULT_VALUE), 1):
+        sheet.update_cell(3, index, val)
+        logging.info("Updating sheet for column:(%s), value:(%s)" % (index, val))
+    en_subjects = get_en_data()
+    title_count = 0
+    for index, val in enumerate((en_subjects), 4):
+        title_count +=1
+        item_title = val.get("title")
+        license_name = val.get("license_name")
+        duration = val.get("duration")
+        youtube_id = val.get("youtube_id")
+        title_id = val.get("readable_id")
+        try:
+            sheet.update_cell(index, 4, item_title)
+            sheet.update_cell(index, 5, license_name)
+            sheet.update_cell(index, 10, title_id)
+            sheet.update_cell(index, 12, duration)
+            sheet.update_cell(index, 15, youtube_id)
+        except Exception as e:
+            logging.warning(e)
+        if index == 1000:
+            break
+    logging.info("Total tiltles added: (%s)" % title_count)
+
+
+def map_spreadsheet_values(spreadsheet=None):
+    spreadsheet = spreadsheet.worksheet(BUILD_VERSION)
+    langcode_list = get_all_languagelookup_data()
+    for lang in langcode_list:
         subject_data_list = []
+        url = "https://%s.khanacademy.org" % lang
         subjects = _scrape_subject(url)
         for subject in subjects:
             dubbed_youtube_ids = _get_youtubes_ids(subject)
             subject_data_dict = _create_data_struct(subject=subject.text, youtube_id=dubbed_youtube_ids)
             subject_data_list.append(subject_data_dict)
-            
-        _as_column = spreadsheet.find("KISWAHILI")
+        locale_name = (langcode_list[lang]).upper()
+        print("local_names", locale_name)
         for subject_data in subject_data_list:
             subject_title = subject_data.get("title")
             subject_youtub_id = subject_data.get("youtube_id")
             print("langcode: %s subject: %s subject_youtub_id: %s" % (url, subject_title, subject_youtub_id))
-            
+
             # Mapping of row and column
             try:
-                _as_row = spreadsheet.find(subject_title)
-                print("value: (%s) col: (%s) row: (%s)" % (_as_column.value, _as_column.col, _as_column.row))
-                print("value: (%s) col: (%s) row: (%s)" % (_as_row.value, _as_row.col, _as_row.row))
-                spreadsheet.update_cell(_as_row.row, _as_column.col, subject_youtub_id)
+                header_subject = spreadsheet.find(subject_title)
+                header_title = spreadsheet.find(locale_name)
+                print("value: (%s) col: (%s) column: (%s)" % (header_title.value, header_title.col, header_title.row))
+                print("value: (%s) col: (%s) row: (%s)" % (header_subject.value, header_subject.col, header_subject.row))
+                spreadsheet.update_cell(row=header_subject.row, col=header_title.col, val=subject_youtub_id)
             except Exception as e:
-                print(e)
+                print("Exception subject not found:", e)
 
 
 def main():
-    check_subjects_in_en_data()
-    generate_en_video_lookup()
+    # check_subjects_in_en_data()
     spreadsheet = _access_google_spreadsheet()
+    # create_new_sheet(spreadsheet)
     map_spreadsheet_values(spreadsheet=spreadsheet)
-    map_spreadsheet_values()
+
     
 
 
