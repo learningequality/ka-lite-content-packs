@@ -610,7 +610,6 @@ def retrieve_kalite_data(lang=EN_LANG_CODE, force=False, ka_domain=KA_DOMAIN, no
         logging.info("  Processing language code %s..." % lang_code)
         projection = json.dumps(PROJECTION_KEYS)
         url = API_URL.format(projection=projection, lang=lang_code, ka_domain=ka_domain)
-        print(url)
         node_data_path = download_and_clean_kalite_data(url, lang=lang_code, ignorecache=force, filename="nodes.json")
         with open(node_data_path, 'r') as f:
             node_data_temp = ujson.load(f)
