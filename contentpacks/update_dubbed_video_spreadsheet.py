@@ -1,5 +1,5 @@
 """
-# TODO(Eduard James Aban):
+# TODO(mrpau-eduard):
     * Convert the json to sql to have a offline version of dubbed video mappings.
     * Retrieve subjects topics and info from en_nodes.json.
     * Make the script as management command.
@@ -12,10 +12,12 @@
 # Reference
     * https://github.com/burnash/gspread
     * https://github.com/burnash/gspread/issues/201
+    https://github.com/Khan/jupyterhub_bq/blob/57f35ba5f7cac34f6eb06be6a99321d325c8a2fd/notebooks/content_metrics/code/queries.py
 """
 
 import errno
 import gspread
+import json
 import os
 import logging
 import requests
@@ -25,6 +27,7 @@ import ujson
 
 from contentpacks.utils import NodeType
 from oauth2client.service_account import ServiceAccountCredentials
+from contentpacks.khanacademy import API_URL, PROJECTION_KEYS, KA_DOMAIN, download_and_clean_kalite_data
 
 
 PROJECT_PATH = os.path.join(os.getcwd())
@@ -32,13 +35,13 @@ BUILD_PATH = os.path.join(PROJECT_PATH, "build")
 GOOGLE_CREDENTIAL_PATH = os.path.join(BUILD_PATH, "credential", 'credentials.json')
 EN_LANGUAGELOOKUP = "english"
 EN_LANG_CODE = "en"
-BUILD_VERSION = "0.17.x"
+BUILD_VERSION = "0.17.post1"
 SPREADSHEET_DEFAULT_VALUE = [
     "SERIAL", "DATE ADDED", "DATE CREATED", "TITLE", "LICENSE", "DOMAIN", "SUBJECT", "TOPIC", "TUTORIAL", "TITLE ID",
     "URL", "DURATION", "REQUIRED FOR", "TRANSCRIPT"]
 
-LE_SUPPORTED_LANG = ['arabic', 'armenian', 'bahasa indonesia', 'bangla', 'bulgarian', 'chinese', 'czech',
-                     'danish', 'dari', 'deutsch', 'english', 'espanol', 'farsi', 'francais', 'greek', 'hebrew',
+LE_SUPPORTED_LANG = ['english', 'arabic', 'armenian', 'bahasa indonesia', 'bangla', 'bulgarian', 'chinese', 'czech',
+                     'danish', 'dari', 'deutsch', 'espanol', 'farsi', 'francais', 'greek', 'hebrew',
                      'hindi', 'italiano', 'japanese', 'kiswahili', 'korean', 'mongolian', 'nederlands', 'norsk',
                      'polish', 'portugal portugues', 'portugues', 'punjabi', 'russian', 'serbian', 'sindhi',
                      'sinhala', 'tamil', 'telugu', 'thai', 'turkce', 'ukrainian', 'urdu', 'xhosa', 'zulu']
@@ -82,16 +85,12 @@ def _access_google_spreadsheet():
 
 
 def get_en_data():
-    BUILD_PATH = "/Users/mrpau-eduard/content-pack-maker/build"
-    dump_json = os.path.join(BUILD_PATH, "en_nodes.json")
-    logging.info("Load en nodes from %s" % dump_json)
-    en_item_data = []
-    with open(dump_json, 'r') as f:
-        en_data = ujson.load(f)
-    for item in en_data:
-        if item["kind"] == NodeType.video:
-            en_item_data.append(item)
-    return en_item_data
+    url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
+    download_and_clean_kalite_data(url, lang=EN_LANG_CODE, ignorecache=False, filename="en_nodes.json")
+    en_nodes_path = os.path.join(BUILD_PATH, "en_nodes.json")
+    with open(en_nodes_path, 'r') as f:
+        en_node_load = ujson.load(f)
+    return en_node_load
 
 
 def get_video_masterlist():
@@ -113,7 +112,7 @@ def get_all_languagelookup_data():
     return lang_data
 
 
-def dubbed_video_data_struct(readable_id, youtube_ids, license, duration, title,):
+def dubbed_video_data_struct(readable_id, youtube_ids, license_name, duration, title,):
     data_dict = {
         "date added": "",
         "date created": "",
@@ -126,7 +125,7 @@ def dubbed_video_data_struct(readable_id, youtube_ids, license, duration, title,
         "url": "",
         "title id": readable_id,
         "youtube_ids": youtube_ids,
-        "license": license,
+        "license": license_name,
         "duration": duration,
         "title": title
     }
@@ -157,11 +156,9 @@ def dubbed_video_node_data(master_node_data, en_node_data):
     * Create a data structure base on en_node data then assign the respective dubbed video ids from the
     master list node data. This will assure us that the youtube_ids match on there respective subject/titles.
     """
-    video_count = 0
     node_data = []
     seen = set()
     for index, en_val in enumerate((en_node_data), 4):
-        video_count += 1
         en_readable_id = en_val.get("readable_id")
         for key, master_val in enumerate(master_node_data):
             master_readable_id = master_val.get("readable_id")
@@ -169,17 +166,72 @@ def dubbed_video_node_data(master_node_data, en_node_data):
                 seen.add(en_readable_id)
                 video_dict = master_val.get("youtube_ids")
                 video_data = get_video_dict(video_dict)
-                license = en_val.get("license")
+                license_name = en_val.get("license_name")
                 title = en_val.get("title")
                 duration = en_val.get("duration")
                 nodes = dubbed_video_data_struct(readable_id=en_readable_id, youtube_ids=video_data,
-                                                 license=license, title=title, duration=duration)
+                                                 license_name=license_name, title=title, duration=duration)
                 node_data.append(nodes)
     dump_json = os.path.join(BUILD_PATH, "node_data.json")
     with open(dump_json, "w") as f:
         ujson.dump(node_data, f)
 
 
+def get_khan_topic():
+    dump_json = os.path.join(BUILD_PATH, "%s_node_data.json" % "khan")
+    if not os.path.exists(dump_json):
+        url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
+        convert_to_json(lang_url=url, lang_code="khan")
+    logging.info("Load khan nodes from %s" % dump_json)
+    
+    with open(dump_json, 'r') as f:
+        khan_en_data = ujson.load(f)
+    video_data_dict = []
+    topic_data_dict = []
+    for key, node in khan_en_data.items():
+        if key == "videos":
+            for video_obj in node:
+                video_title = video_obj.get("title")
+                video_id = video_obj.get("id")
+                data_dict = {"video_title": video_title, "video_id": video_id}
+                video_data_dict.append(data_dict)
+        
+        if key == "topics":
+            for topic_obj in node:
+                topic_title = topic_obj.get("title")
+                for child_data in topic_obj.get("childData"):
+                    if child_data.get("kind") == "Video":
+                        data_dict = {"topic_title": topic_title, "child_data": child_data}
+                        topic_data_dict.append(data_dict)
+    
+    # Lets get the domain subject and topic of the videos
+    khan_data_dict = []
+    seen = set()
+    for video_data in video_data_dict:
+        video_title = video_data.get("video_title")
+        video_id = video_data.get("video_id")
+        for topic_data in topic_data_dict:
+            topic_sub_data = topic_data.get("child_data")
+            if video_id == topic_sub_data.get("id") and video_id not in seen:
+                topic_title = topic_data.get("topic_title")
+                data = {"topic": topic_title, "subject_title": video_title}
+                khan_data_dict.append(data)
+                seen.add(video_id)
+    
+    dump_json = os.path.join(BUILD_PATH, "node_data.json")
+    with open(dump_json, 'r') as f:
+        node_data = ujson.load(f)
+
+    for node in node_data:
+        title = node.get("title")
+        for khan_data in khan_data_dict:
+            if title == khan_data.get("subject_title"):
+                node["tutorial"] = khan_data.get("topic")
+                
+    dump_json = os.path.join(BUILD_PATH, "node_data.json")
+    with open(dump_json, "w") as f:
+        ujson.dump(node_data, f)
+    
 
 def map_cell_range(start_col, end_col, start_row, end_row):
     """Get the cell range to update the cells by batch"""
@@ -201,17 +253,21 @@ def convert_number_to_column(n, b=string.ascii_uppercase):
 def update_cell_by_batch(sheet, node_data,  lang_column, node_key, start_col, end_col, start_row, end_row):
     header_cell_range = map_cell_range(start_col=start_col, end_col=end_col, start_row=start_row, end_row=end_row)
     title_cell_list = sheet.range(header_cell_range)
+    video_count = 0
     for nodes, cell in zip(node_data, title_cell_list):
         if node_key == "youtube_ids":
             node_obj = nodes.get(node_key)
             for key, video_obj in node_obj.items():
                 if key == lang_column.lower():
+                    video_count += 1
                     cell.value = video_obj
         else:
             node_obj = nodes.get(node_key)
             cell.value = node_obj
             if cell.value is None:
                 cell.value = ""
+    if node_key == "youtube_ids":
+        logging.info("Total video count for %s: (%s)" % (lang_column, video_count))
     sheet.update_cells(title_cell_list)
   
         
@@ -261,6 +317,7 @@ def main():
     en_node_data = get_en_data()
     master_node_data = get_video_masterlist()
     dubbed_video_node_data(master_node_data, en_node_data)
+    get_khan_topic()
     spreadsheet = _access_google_spreadsheet()
     update_or_create_spreadsheet(spreadsheet)
 
