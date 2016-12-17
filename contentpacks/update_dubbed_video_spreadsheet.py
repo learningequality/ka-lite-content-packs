@@ -85,9 +85,10 @@ def _access_google_spreadsheet():
 
 
 def get_en_data():
-    url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
-    download_and_clean_kalite_data(url, lang=EN_LANG_CODE, ignorecache=False, filename="en_nodes.json")
     en_nodes_path = os.path.join(BUILD_PATH, "en_nodes.json")
+    if not os.path.exists(en_nodes_path):
+        url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
+        download_and_clean_kalite_data(url, lang=EN_LANG_CODE, ignorecache=False, filename="en_nodes.json")
     with open(en_nodes_path, 'r') as f:
         en_node_load = ujson.load(f)
     return en_node_load
@@ -95,10 +96,11 @@ def get_en_data():
 
 def get_video_masterlist():
     """Get dubbed video master list"""
-    lang_url = "http://www.khanacademy.org/api/internal/videos/localized/all"
     lang_code = "master_list"
-    convert_to_json(lang_url=lang_url, lang_code=lang_code)
     dump_json = os.path.join(BUILD_PATH, "%s_node_data.json" % lang_code)
+    if not os.path.exists(dump_json):
+        lang_url = "http://www.khanacademy.org/api/internal/videos/localized/all"
+        convert_to_json(lang_url=lang_url, lang_code=lang_code)
     logging.info("Build video master list at %s" % dump_json)
     with open(dump_json, 'r') as f:
         download_node_data = ujson.load(f)
@@ -116,12 +118,8 @@ def dubbed_video_data_struct(readable_id, youtube_ids, license_name, duration, t
     data_dict = {
         "date added": "",
         "date created": "",
-        "domain": "",
         "required for": "",
-        "subject": "",
-        "topic": "",
         "transcript": "",
-        "tutorial": "",
         "url": "",
         "title id": readable_id,
         "youtube_ids": youtube_ids,
@@ -172,21 +170,20 @@ def dubbed_video_node_data(master_node_data, en_node_data):
                 nodes = dubbed_video_data_struct(readable_id=en_readable_id, youtube_ids=video_data,
                                                  license_name=license_name, title=title, duration=duration)
                 node_data.append(nodes)
-    dump_json = os.path.join(BUILD_PATH, "node_data.json")
-    with open(dump_json, "w") as f:
-        ujson.dump(node_data, f)
+    return node_data
 
 
-def get_khan_topic():
-    dump_json = os.path.join(BUILD_PATH, "%s_node_data.json" % "khan")
-    if not os.path.exists(dump_json):
+def assign_topic(node_data):
+    khan_json = os.path.join(BUILD_PATH, "%s_node_data.json" % "khan")
+    if not os.path.exists(khan_json):
         url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
         convert_to_json(lang_url=url, lang_code="khan")
-    logging.info("Load khan nodes from %s" % dump_json)
-    
-    with open(dump_json, 'r') as f:
+    logging.info("Load khan nodes from %s" % khan_json)
+    with open(khan_json, 'r') as f:
         khan_en_data = ujson.load(f)
+        
     video_data_dict = []
+    tutorial_data_dict = []
     topic_data_dict = []
     for key, node in khan_en_data.items():
         if key == "videos":
@@ -199,39 +196,60 @@ def get_khan_topic():
         if key == "topics":
             for topic_obj in node:
                 topic_title = topic_obj.get("title")
+                topic_id = topic_obj.get("id")
                 for child_data in topic_obj.get("childData"):
+                    # Collect all the topics which will be tutorial data of each video.
                     if child_data.get("kind") == "Video":
-                        data_dict = {"topic_title": topic_title, "child_data": child_data}
+                        data_dict = {"tutorial_title": topic_title, "child_data": child_data, "tutorial_id": topic_id}
+                        tutorial_data_dict.append(data_dict)
+                    # Collect all the topics.
+                    if child_data.get("kind") == "Topic":
+                        data_dict = {"topic_title": topic_title, "child_data": child_data, "topic_id": topic_id}
                         topic_data_dict.append(data_dict)
-    
-    # Lets get the domain subject and topic of the videos
+
+    def _get_topic_child_data(topic_dict, obj_id):
+        for topic in topic_dict:
+            topic_child_data = topic.get("child_data")
+            if topic_child_data.get("id") == obj_id:
+                return topic
+        return {}
+
     khan_data_dict = []
     seen = set()
     for video_data in video_data_dict:
         video_title = video_data.get("video_title")
         video_id = video_data.get("video_id")
-        for topic_data in topic_data_dict:
-            topic_sub_data = topic_data.get("child_data")
-            if video_id == topic_sub_data.get("id") and video_id not in seen:
-                topic_title = topic_data.get("topic_title")
-                data = {"topic": topic_title, "subject_title": video_title}
-                khan_data_dict.append(data)
+        for tutorial_data in tutorial_data_dict:
+            tutorial_child_data = tutorial_data.get("child_data")
+            # Match the video id to its tutorial data id.
+            if video_id == tutorial_child_data.get("id") and video_id not in seen:
                 seen.add(video_id)
+                tutorial_title = tutorial_data.get("tutorial_title")
+                tutorial_id = tutorial_data.get("tutorial_id")
+                # Match the tutorial id to its topic id.
+                topic_data = _get_topic_child_data(topic_data_dict, tutorial_id)
+                # Match the topic id to get the subject data.
+                subject_data = _get_topic_child_data(topic_data_dict, topic_data.get("topic_id"))
+                # Match the subject id to get the domain data.
+                domain_data = _get_topic_child_data(topic_data_dict, subject_data.get("topic_id"))
+                data = {"domain": domain_data.get("topic_title"), "topic_title": topic_data.get("topic_title", {}),
+                        "tutorial_title": tutorial_title, "video_title": video_title,
+                        "subject_title": subject_data.get("topic_title")}
+                khan_data_dict.append(data)
     
-    dump_json = os.path.join(BUILD_PATH, "node_data.json")
-    with open(dump_json, 'r') as f:
-        node_data = ujson.load(f)
-
     for node in node_data:
         title = node.get("title")
         for khan_data in khan_data_dict:
-            if title == khan_data.get("subject_title"):
-                node["tutorial"] = khan_data.get("topic")
-                
+            if title == khan_data.get("video_title"):
+                node["tutorial"] = khan_data.get("tutorial_title")
+                node["domain"] = khan_data.get("domain")
+                node["topic"] = khan_data.get("topic_title")
+                node["subject"] = khan_data.get("subject_title")
     dump_json = os.path.join(BUILD_PATH, "node_data.json")
     with open(dump_json, "w") as f:
         ujson.dump(node_data, f)
-    
+                
+                
 
 def map_cell_range(start_col, end_col, start_row, end_row):
     """Get the cell range to update the cells by batch"""
@@ -316,8 +334,8 @@ def update_or_create_spreadsheet(spreadsheet=None, node_data=None):
 def main():
     en_node_data = get_en_data()
     master_node_data = get_video_masterlist()
-    dubbed_video_node_data(master_node_data, en_node_data)
-    get_khan_topic()
+    node_data = dubbed_video_node_data(master_node_data, en_node_data)
+    assign_topic(node_data)
     spreadsheet = _access_google_spreadsheet()
     update_or_create_spreadsheet(spreadsheet)
 
