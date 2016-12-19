@@ -25,20 +25,28 @@ import string
 import sys
 import ujson
 
-from contentpacks.utils import NodeType
 from oauth2client.service_account import ServiceAccountCredentials
 from contentpacks.khanacademy import API_URL, PROJECTION_KEYS, KA_DOMAIN, download_and_clean_kalite_data
 
 
 PROJECT_PATH = os.path.join(os.getcwd())
 BUILD_PATH = os.path.join(PROJECT_PATH, "build")
-GOOGLE_CREDENTIAL_PATH = os.path.join(BUILD_PATH, "credential", 'credentials.json')
+CREDENTIAL_DIR = os.path.join(BUILD_PATH, "credential")
+GOOGLE_CREDENTIAL_FILE = os.path.join(CREDENTIAL_DIR, "credentials.json")
+SCOPE = ['https://spreadsheets.google.com/feeds']
+
+CONTETNPACK_DIR = os.path.join(PROJECT_PATH, "contentpacks")
+RESOURCES_DIR = os.path.join(CONTETNPACK_DIR, "resources")
+LANGUAGELOOKUP_FILE = os.path.join(RESOURCES_DIR, "languagelookup.json")
+
 EN_LANGUAGELOOKUP = "english"
 EN_LANG_CODE = "en"
 BUILD_VERSION = "0.17.post1"
 SPREADSHEET_DEFAULT_VALUE = [
     "SERIAL", "DATE ADDED", "DATE CREATED", "TITLE", "LICENSE", "DOMAIN", "SUBJECT", "TOPIC", "TUTORIAL", "TITLE ID",
     "URL", "DURATION", "REQUIRED FOR", "TRANSCRIPT"]
+
+LE_TRANSLATIONMAPPING = "https://docs.google.com/spreadsheets/d/1haV0KK8313lG-_Ay2REplQuMquRStZumB3zxmmtYqO0/edit#gid=0"
 
 LE_SUPPORTED_LANG = ['english', 'arabic', 'armenian', 'bahasa indonesia', 'bangla', 'bulgarian', 'chinese', 'czech',
                      'danish', 'dari', 'deutsch', 'espanol', 'farsi', 'francais', 'greek', 'hebrew',
@@ -64,28 +72,41 @@ def _ensure_dir(path):
         
 
 def convert_to_json(lang_url, lang_code):
+    """A handy json converter just pass the lang_code and the url of the json source."""
     data = requests.get(lang_url)
     node_data = ujson.loads(data.content)
     dump_json = os.path.join(BUILD_PATH, "%s_node_data.json" % lang_code)
     with open(dump_json, "w") as f:
         ujson.dump(node_data, f)
-        
 
-def _access_google_spreadsheet():
+def access_google_spreadsheet():
+    """
+    * To create the google credentials do the steps below:
+        1. Head to Google Developers Console and create a new project (or select the one you have.)
+        2. Under “API & auth”, in the API enable “Drive API”.
+        3. Go to “Credentials” and choose “New Credentials > Service Account Key”.
+        4. Download the json file. Move the .json file in the ~/content-pack-maker/build/credential/
+        5. Rename the file as credential.json
+    """
     credentials = None
-    _ensure_dir(os.path.dirname(GOOGLE_CREDENTIAL_PATH))
-    scope = ['https://spreadsheets.google.com/feeds']
-    if os.path.exists(GOOGLE_CREDENTIAL_PATH):
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIAL_PATH, scope)
+    _ensure_dir(os.path.dirname(GOOGLE_CREDENTIAL_FILE))
+    if os.path.exists(GOOGLE_CREDENTIAL_FILE):
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIAL_FILE, SCOPE)
     else:
         logging.info("Please create your google credentials.")
     gcreadentials = gspread.authorize(credentials)
-    sheet = gcreadentials.open_by_url("https://docs.google.com/spreadsheets/d/1q9fVt5cxkR7dI7uLR1klGDK7XHjjeSvBoWYilkDqE50/edit#gid=0")
+    sheet = gcreadentials.open_by_url(LE_TRANSLATIONMAPPING)
     return sheet
 
 
 def get_en_data():
+    """
+    * Create the en_nodes.json.
+    :return:
+    """
     en_nodes_path = os.path.join(BUILD_PATH, "en_nodes.json")
+    logging.info("Now creating %s..." % en_nodes_path)
+
     if not os.path.exists(en_nodes_path):
         url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
         download_and_clean_kalite_data(url, lang=EN_LANG_CODE, ignorecache=False, filename="en_nodes.json")
@@ -108,8 +129,7 @@ def get_video_masterlist():
 
 
 def get_all_languagelookup_data():
-    languagelookup = os.path.join(PROJECT_PATH, "resources/languagelookup.json")
-    with open(languagelookup, 'r') as f:
+    with open(LANGUAGELOOKUP_FILE, 'r') as f:
         lang_data = ujson.load(f)
     return lang_data
 
@@ -156,7 +176,7 @@ def dubbed_video_node_data(master_node_data, en_node_data):
     """
     node_data = []
     seen = set()
-    for index, en_val in enumerate((en_node_data), 4):
+    for index, en_val in enumerate((en_node_data), 1):
         en_readable_id = en_val.get("readable_id")
         for key, master_val in enumerate(master_node_data):
             master_readable_id = master_val.get("readable_id")
@@ -173,7 +193,13 @@ def dubbed_video_node_data(master_node_data, en_node_data):
     return node_data
 
 
-def assign_topic(node_data):
+def assign_topic_data(node_data):
+    """
+    * Get the fresh topics from khan en language then match each video id with its respective topics,
+        tutorial, subjects and domain.
+    * Create the video_node_data.json
+    
+    """
     khan_json = os.path.join(BUILD_PATH, "%s_node_data.json" % "khan")
     if not os.path.exists(khan_json):
         url = API_URL.format(projection=json.dumps(PROJECTION_KEYS), lang=EN_LANG_CODE, ka_domain=KA_DOMAIN)
@@ -226,7 +252,7 @@ def assign_topic(node_data):
                 seen.add(video_id)
                 tutorial_title = tutorial_data.get("tutorial_title")
                 tutorial_id = tutorial_data.get("tutorial_id")
-                # Match the tutorial id to its topic id.
+                # Match the tutorial id get the topic data.
                 topic_data = _get_topic_child_data(topic_data_dict, tutorial_id)
                 # Match the topic id to get the subject data.
                 subject_data = _get_topic_child_data(topic_data_dict, topic_data.get("topic_id"))
@@ -239,13 +265,14 @@ def assign_topic(node_data):
     
     for node in node_data:
         title = node.get("title")
-        for khan_data in khan_data_dict:
+        for index, khan_data in enumerate((khan_data_dict), 1):
             if title == khan_data.get("video_title"):
+                node["serial"] = index
                 node["tutorial"] = khan_data.get("tutorial_title")
                 node["domain"] = khan_data.get("domain")
                 node["topic"] = khan_data.get("topic_title")
                 node["subject"] = khan_data.get("subject_title")
-    dump_json = os.path.join(BUILD_PATH, "node_data.json")
+    dump_json = os.path.join(BUILD_PATH, "video_node_data.json")
     with open(dump_json, "w") as f:
         ujson.dump(node_data, f)
                 
@@ -269,6 +296,7 @@ def convert_number_to_column(n, b=string.ascii_uppercase):
 
 
 def update_cell_by_batch(sheet, node_data,  lang_column, node_key, start_col, end_col, start_row, end_row):
+    """Update the cell by batch """
     header_cell_range = map_cell_range(start_col=start_col, end_col=end_col, start_row=start_row, end_row=end_row)
     title_cell_list = sheet.range(header_cell_range)
     video_count = 0
@@ -289,10 +317,10 @@ def update_cell_by_batch(sheet, node_data,  lang_column, node_key, start_col, en
     sheet.update_cells(title_cell_list)
   
         
-def update_or_create_spreadsheet(spreadsheet=None, node_data=None):
+def update_or_create_spreadsheet(spreadsheet=None):
     """Map the node_data.json into the spreadsheet"""
     
-    dump_json = os.path.join(BUILD_PATH, "node_data.json")
+    dump_json = os.path.join(BUILD_PATH, "video_node_data.json")
     with open(dump_json, 'r') as f:
         node_data = ujson.load(f)
         
@@ -331,12 +359,13 @@ def update_or_create_spreadsheet(spreadsheet=None, node_data=None):
                                  start_col=column_header.col - 1, end_col=column_header.col - 1, start_row=4,
                                  end_row=node_obj_count)
 
+
 def main():
     en_node_data = get_en_data()
     master_node_data = get_video_masterlist()
     node_data = dubbed_video_node_data(master_node_data, en_node_data)
-    assign_topic(node_data)
-    spreadsheet = _access_google_spreadsheet()
+    assign_topic_data(node_data)
+    spreadsheet = access_google_spreadsheet()
     update_or_create_spreadsheet(spreadsheet)
 
     
