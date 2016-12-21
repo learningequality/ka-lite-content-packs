@@ -12,6 +12,9 @@
         3. Go to “Credentials” and choose “New Credentials > Service Account Key”.
         4. Download the json file. Move the .json file in the ~/content-pack-maker/build/credential/
         5. Rename the file as credential.json
+    * Share the spreadsheet to the client_email. otherwise you can't access the spreadsheet.
+        - Get the value of the client_mail from the credential.json.
+        
 
 # Reference
     * https://github.com/burnash/gspread
@@ -188,7 +191,7 @@ def assign_topic_data(node_data):
     """
     * Get the fresh topics from khan en language then match each video id with its respective topics,
         tutorial, subjects and domain.
-    * Create the video_node_data.json
+    * Create the video_node_data.json.
     
     """
     khan_json = os.path.join(BUILD_PATH, "%s_node_data.json" % "khan")
@@ -218,14 +221,13 @@ def assign_topic_data(node_data):
                 topic_title = topic_obj.get("title")
                 topic_id = topic_obj.get("id")
                 for child_data in topic_obj.get("childData"):
+                    logging.info("Collect child data: ", child_data)
                     # Collect all the topics which will be tutorial data of each video.
                     if child_data.get("kind") == "Video":
-                        logging.info("Collect child data with kind Video which associate with the tutorial id.")
                         data_dict = {"tutorial_title": topic_title, "child_data": child_data, "tutorial_id": topic_id}
                         tutorial_data_dict.append(data_dict)
                     # Collect all the topics.
                     if child_data.get("kind") == "Topic":
-                        logging.info("Collect child data with kind Topic which associate with the topic id.")
                         data_dict = {"topic_title": topic_title, "child_data": child_data, "topic_id": topic_id}
                         topic_data_dict.append(data_dict)
 
@@ -233,6 +235,7 @@ def assign_topic_data(node_data):
         for topic in topic_dict:
             topic_child_data = topic.get("child_data")
             if topic_child_data.get("id") == obj_id:
+                logging.info("Match topic:(%s) to (%s)" % (obj_id, topic.get("topic_title")))
                 return topic
         return {}
 
@@ -245,25 +248,21 @@ def assign_topic_data(node_data):
         for tutorial_data in tutorial_data_dict:
             tutorial_child_data = tutorial_data.get("child_data")
             if video_id == tutorial_child_data.get("id") and video_id not in seen:
-                logging.info("Match the %s to its tutorial data: %s" % (video_title, tutorial_child_data.get("id")))
                 seen.add(video_id)
                 tutorial_title = tutorial_data.get("tutorial_title")
                 tutorial_id = tutorial_data.get("tutorial_id")
                 topic_data = _get_topic_child_data(topic_data_dict, tutorial_id)
-                logging.info("Match the %s get the topic data" % (tutorial_title))
                 subject_data = _get_topic_child_data(topic_data_dict, topic_data.get("topic_id"))
-                logging.info("Match the %s to get the subject data" % (topic_data.get("topic_title")))
                 domain_data = _get_topic_child_data(topic_data_dict, subject_data.get("topic_id"))
-                logging.info("Match the %s to get the domain data" % (subject_data.get("topic_title")))
                 data = {"domain": domain_data.get("topic_title"), "topic_title": topic_data.get("topic_title"),
                         "tutorial_title": tutorial_title, "video_title": video_title,
                         "subject_title": subject_data.get("topic_title")}
                 khan_data_dict.append(data)
     
-    for obj_id, node in enumerate(node_data):
+    for obj_id, node in enumerate((node_data), 1):
         node["serial"] = obj_id
         title = node.get("title")
-        for index, khan_data in enumerate((khan_data_dict), 1):
+        for index, khan_data in enumerate(khan_data_dict):
             if title == khan_data.get("video_title"):
                 node["tutorial"] = khan_data.get("tutorial_title")
                 node["domain"] = khan_data.get("domain")
