@@ -1,18 +1,21 @@
 """
 # TODO(mrpau-eduard):
     * Convert the json to sql to have a offline version of dubbed video mappings.
-    * Retrieve subjects topics and info from en_nodes.json.
-    * Make the script as management command.
-    * Make a documentation for this script how to use it.
 
 # Note:
     * Lets hard code the supported lang since it is not sure if we use ka_name, native_name or name as the default
     language name.
+    * To create the google credentials do the steps below:
+        1. Head to Google Developers Console and create a new project (or select the one you have.)
+            - Google console: https://console.developers.google.com/project
+        2. Under “API & auth”, in the API enable “Drive API”.
+        3. Go to “Credentials” and choose “New Credentials > Service Account Key”.
+        4. Download the json file. Move the .json file in the ~/content-pack-maker/build/credential/
+        5. Rename the file as credential.json
 
 # Reference
     * https://github.com/burnash/gspread
     * https://github.com/burnash/gspread/issues/201
-    https://github.com/Khan/jupyterhub_bq/blob/57f35ba5f7cac34f6eb06be6a99321d325c8a2fd/notebooks/content_metrics/code/queries.py
 """
 
 import errno
@@ -39,7 +42,6 @@ CONTETNPACK_DIR = os.path.join(PROJECT_PATH, "contentpacks")
 RESOURCES_DIR = os.path.join(CONTETNPACK_DIR, "resources")
 LANGUAGELOOKUP_FILE = os.path.join(RESOURCES_DIR, "languagelookup.json")
 
-EN_LANGUAGELOOKUP = "english"
 EN_LANG_CODE = "en"
 BUILD_VERSION = "0.17.post1"
 SPREADSHEET_DEFAULT_VALUE = [
@@ -80,14 +82,6 @@ def convert_to_json(lang_url, lang_code):
         ujson.dump(node_data, f)
 
 def access_google_spreadsheet():
-    """
-    * To create the google credentials do the steps below:
-        1. Head to Google Developers Console and create a new project (or select the one you have.)
-        2. Under “API & auth”, in the API enable “Drive API”.
-        3. Go to “Credentials” and choose “New Credentials > Service Account Key”.
-        4. Download the json file. Move the .json file in the ~/content-pack-maker/build/credential/
-        5. Rename the file as credential.json
-    """
     credentials = None
     _ensure_dir(os.path.dirname(GOOGLE_CREDENTIAL_FILE))
     if os.path.exists(GOOGLE_CREDENTIAL_FILE):
@@ -102,7 +96,6 @@ def access_google_spreadsheet():
 def get_en_data():
     """
     * Create the en_nodes.json.
-    :return:
     """
     en_nodes_path = os.path.join(BUILD_PATH, "en_nodes.json")
     logging.info("Now creating %s..." % en_nodes_path)
@@ -121,6 +114,7 @@ def get_video_masterlist():
     dump_json = os.path.join(BUILD_PATH, "%s_node_data.json" % lang_code)
     if not os.path.exists(dump_json):
         lang_url = "http://www.khanacademy.org/api/internal/videos/localized/all"
+        logging.info("Get the master list video at ", lang_url)
         convert_to_json(lang_url=lang_url, lang_code=lang_code)
     logging.info("Build video master list at %s" % dump_json)
     with open(dump_json, 'r') as f:
@@ -134,12 +128,8 @@ def get_all_languagelookup_data():
     return lang_data
 
 
-def dubbed_video_data_struct(readable_id, youtube_ids, license_name, duration, title,):
+def dubbed_video_data_struct(readable_id, youtube_ids, license_name, duration, title):
     data_dict = {
-        "date added": "",
-        "date created": "",
-        "required for": "",
-        "transcript": "",
         "url": "",
         "title id": readable_id,
         "youtube_ids": youtube_ids,
@@ -176,9 +166,10 @@ def dubbed_video_node_data(master_node_data, en_node_data):
     """
     node_data = []
     seen = set()
+    logging.info("Creating initial data structure base on the en_nodes.json and dubbed_video master list.")
     for index, en_val in enumerate((en_node_data), 1):
         en_readable_id = en_val.get("readable_id")
-        for key, master_val in enumerate(master_node_data):
+        for key_id, master_val in enumerate(master_node_data):
             master_readable_id = master_val.get("readable_id")
             if en_readable_id == master_readable_id and en_readable_id not in seen:
                 seen.add(en_readable_id)
@@ -211,7 +202,9 @@ def assign_topic_data(node_data):
     video_data_dict = []
     tutorial_data_dict = []
     topic_data_dict = []
+    logging.info("Assign topic base on the khan en language.")
     for key, node in khan_en_data.items():
+        logging.info("Collect all nodes with a key videos.")
         if key == "videos":
             for video_obj in node:
                 video_title = video_obj.get("title")
@@ -220,16 +213,19 @@ def assign_topic_data(node_data):
                 video_data_dict.append(data_dict)
         
         if key == "topics":
+            logging.info("Collect all nodes with a key topics.")
             for topic_obj in node:
                 topic_title = topic_obj.get("title")
                 topic_id = topic_obj.get("id")
                 for child_data in topic_obj.get("childData"):
                     # Collect all the topics which will be tutorial data of each video.
                     if child_data.get("kind") == "Video":
+                        logging.info("Collect child data with kind Video which associate with the tutorial id.")
                         data_dict = {"tutorial_title": topic_title, "child_data": child_data, "tutorial_id": topic_id}
                         tutorial_data_dict.append(data_dict)
                     # Collect all the topics.
                     if child_data.get("kind") == "Topic":
+                        logging.info("Collect child data with kind Topic which associate with the topic id.")
                         data_dict = {"topic_title": topic_title, "child_data": child_data, "topic_id": topic_id}
                         topic_data_dict.append(data_dict)
 
@@ -242,37 +238,39 @@ def assign_topic_data(node_data):
 
     khan_data_dict = []
     seen = set()
+    logging.info("Assign topics to the video data.")
     for video_data in video_data_dict:
         video_title = video_data.get("video_title")
         video_id = video_data.get("video_id")
         for tutorial_data in tutorial_data_dict:
             tutorial_child_data = tutorial_data.get("child_data")
-            # Match the video id to its tutorial data id.
             if video_id == tutorial_child_data.get("id") and video_id not in seen:
+                logging.info("Match the %s to its tutorial data: %s" % (video_title, tutorial_child_data.get("id")))
                 seen.add(video_id)
                 tutorial_title = tutorial_data.get("tutorial_title")
                 tutorial_id = tutorial_data.get("tutorial_id")
-                # Match the tutorial id get the topic data.
                 topic_data = _get_topic_child_data(topic_data_dict, tutorial_id)
-                # Match the topic id to get the subject data.
+                logging.info("Match the %s get the topic data" % (tutorial_title))
                 subject_data = _get_topic_child_data(topic_data_dict, topic_data.get("topic_id"))
-                # Match the subject id to get the domain data.
+                logging.info("Match the %s to get the subject data" % (topic_data.get("topic_title")))
                 domain_data = _get_topic_child_data(topic_data_dict, subject_data.get("topic_id"))
-                data = {"domain": domain_data.get("topic_title"), "topic_title": topic_data.get("topic_title", {}),
+                logging.info("Match the %s to get the domain data" % (subject_data.get("topic_title")))
+                data = {"domain": domain_data.get("topic_title"), "topic_title": topic_data.get("topic_title"),
                         "tutorial_title": tutorial_title, "video_title": video_title,
                         "subject_title": subject_data.get("topic_title")}
                 khan_data_dict.append(data)
     
-    for node in node_data:
+    for obj_id, node in enumerate(node_data):
+        node["serial"] = obj_id
         title = node.get("title")
         for index, khan_data in enumerate((khan_data_dict), 1):
             if title == khan_data.get("video_title"):
-                node["serial"] = index
                 node["tutorial"] = khan_data.get("tutorial_title")
                 node["domain"] = khan_data.get("domain")
                 node["topic"] = khan_data.get("topic_title")
                 node["subject"] = khan_data.get("subject_title")
     dump_json = os.path.join(BUILD_PATH, "video_node_data.json")
+    logging.info("Save new dubbed_video data in %s" % dump_json)
     with open(dump_json, "w") as f:
         ujson.dump(node_data, f)
                 
@@ -298,6 +296,7 @@ def convert_number_to_column(n, b=string.ascii_uppercase):
 def update_cell_by_batch(sheet, node_data,  lang_column, node_key, start_col, end_col, start_row, end_row):
     """Update the cell by batch """
     header_cell_range = map_cell_range(start_col=start_col, end_col=end_col, start_row=start_row, end_row=end_row)
+    logging.info("Updating cell range at %s" % header_cell_range)
     title_cell_list = sheet.range(header_cell_range)
     video_count = 0
     for nodes, cell in zip(node_data, title_cell_list):
@@ -319,8 +318,8 @@ def update_cell_by_batch(sheet, node_data,  lang_column, node_key, start_col, en
         
 def update_or_create_spreadsheet(spreadsheet=None):
     """Map the node_data.json into the spreadsheet"""
-    
     dump_json = os.path.join(BUILD_PATH, "video_node_data.json")
+    logging.info("Lets update the spreadsheet using the %s" % dump_json)
     with open(dump_json, 'r') as f:
         node_data = ujson.load(f)
         
@@ -330,6 +329,7 @@ def update_or_create_spreadsheet(spreadsheet=None):
         spreadsheet_headers.append(sup_lang.upper())
     column_length = len(spreadsheet_headers)
     try:
+        logging.info("Create spreadsheet %s with columns:(%s) and rows:(%s)" % (BUILD_VERSION, column_length, node_obj_count))
         spreadsheet.add_worksheet(title=BUILD_VERSION, rows=node_obj_count, cols=column_length+2)
     except Exception as e:
         logging.info(e)
@@ -342,19 +342,22 @@ def update_or_create_spreadsheet(spreadsheet=None):
         cell.value = val
     sheet.update_cells(header_cell_list)
     
-    # Lets find first the header location to reduce waiting time finding the column location before mapping it.
+    logging.info("Find first the header location to reduce waiting time finding the column location before mapping it.")
     sp_headers_coordinate = []
     for obj in spreadsheet_headers:
         header_value = sheet.find(obj.upper())
         sp_headers_coordinate.append(header_value)
+    logging.info("Header coordinates:", sp_headers_coordinate)
         
     for column_header in sp_headers_coordinate:
         logging.info("Updating values in column %s: " % column_header)
         
         if column_header.value.lower() in LE_SUPPORTED_LANG:
+            logging.info("Update column(%s) with the node of count(%s)" % (column_header, node_obj_count))
             update_cell_by_batch(sheet, node_data=node_data, lang_column=column_header.value, node_key="youtube_ids",
                                  start_col=column_header.col-1, end_col=column_header.col-1, start_row=4, end_row=node_obj_count)
         else:
+            logging.info("Update column(%s) with the node of count(%s)" % (column_header, node_obj_count))
             update_cell_by_batch(sheet, node_data=node_data, lang_column=None, node_key=column_header.value.lower(),
                                  start_col=column_header.col - 1, end_col=column_header.col - 1, start_row=4,
                                  end_row=node_obj_count)

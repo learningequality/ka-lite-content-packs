@@ -85,5 +85,5 @@ publish:
 	scp -P 4242 all_metadata.json $(sshuser)@pantry.learningequality.org:/var/www/downloads/$(project)/$(version)/content/contentpacks/
 
 
-make csv:
+make dubbed-video-csv:
 	./makecontentpacks ./contentpacks/update_dubbed_video_spreadsheet.py
