@@ -117,7 +117,7 @@ def get_video_masterlist():
     dump_json = os.path.join(BUILD_PATH, "%s_node_data.json" % lang_code)
     if not os.path.exists(dump_json):
         lang_url = "http://www.khanacademy.org/api/internal/videos/localized/all"
-        logging.info("Get the master list video at ", lang_url)
+        logging.info("Get the master list video at %s" % lang_url)
         convert_to_json(lang_url=lang_url, lang_code=lang_code)
     logging.info("Build video master list at %s" % dump_json)
     with open(dump_json, 'r') as f:
@@ -151,13 +151,13 @@ def get_video_dict(video_dict=None):
         for lookup_key, val in languagelookup.items():
             for video_key, youtube_id in video_dict.items():
                 if val.get("ka_name") is not None and sup_lang == val.get("ka_name").lower():
-                    if video_key == lookup_key:
+                    if video_key.lower() == lookup_key.lower():
                         data_dict[sup_lang] = youtube_id
                 elif val.get("native_name") is not None and sup_lang == val.get("native_name").lower():
-                    if video_key == lookup_key:
+                    if video_key.lower() == lookup_key.lower():
                         data_dict[sup_lang] = youtube_id
                 elif val.get("name") is not None and sup_lang == val.get("name").lower():
-                    if video_key == lookup_key:
+                    if video_key.lower() == lookup_key.lower():
                         data_dict[sup_lang] = youtube_id
     return data_dict
 
