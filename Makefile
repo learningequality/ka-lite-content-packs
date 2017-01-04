@@ -5,63 +5,55 @@ contentpack: pex
 	./makecontentpacks extract_khan_assessment.py out/en.zip
 	./makecontentpacks collectmetadata.py out/ --out=out/all_metadata.json
 
-es: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite es 0.16 --out=out/langpacks/es.zip --no-assessment-resources --subtitlelang=es --interfacelang=es-ES --contentlang=es-ES
-
-
-pt-BR: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite pt-BR 0.16 --out=out/langpacks/pt-BR.zip --no-assessment-resources --videolang=pt-BR --contentlang=pt-BR
-
-
-sw: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite sw 0.16 --out=out/langpacks/sw.zip --no-assessment-resources --videolang=sw --subtitlelang=sw
-
-
-pt-PT: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite pt-PT 0.16 --out=out/langpacks/pt-PT.zip --no-assessment-resources --videolang=pt-PT --contentlang=pt-PT
-
-
-bn: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite bn 0.16 --out=out/langpacks/bn.zip --no-assessment-resources
-
-
-de: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite de 0.16 --out=out/langpacks/de.zip --no-assessment-resources
-
-
-fr: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite fr 0.16 --out=out/langpacks/fr.zip --no-assessment-resources
-
-
-da: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite da 0.16 --out=out/langpacks/da.zip --no-assessment-resources
-
+ar: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ar 0.17 --out=out/langpacks/ar.zip --no-assessment-resource
 
 bg: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite bg 0.16 --out=out/langpacks/bg.zip --no-assessment-resources
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite bg 0.17 --out=out/langpacks/bg.zip --no-assessment-resources
 
+bn: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite bn 0.17 --out=out/langpacks/bn.zip --no-assessment-resources
 
-ka: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ka 0.16 --out=out/langpacks/ka.zip --no-assessment-resources
+da: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite da 0.17 --out=out/langpacks/da.zip --no-assessment-resources
 
+de: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite de 0.17 --out=out/langpacks/de.zip --no-assessment-resources
+
+es: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite es 0.17 --out=out/langpacks/es.zip --no-assessment-resources --subtitlelang=es --interfacelang=es-ES --contentlang=es-ES
+
+fr: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite fr 0.17 --out=out/langpacks/fr.zip --no-assessment-resources
 
 id: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite id 0.16 --out=out/langpacks/id.zip --no-assessment-resource
-
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite id 0.17 --out=out/langpacks/id.zip --no-assessment-resource
 
 hi: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite hi 0.16 --out=out/langpacks/hi.zip --no-assessment-resource
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite hi 0.17 --out=out/langpacks/hi.zip --no-assessment-resource
 
+ka: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ka 0.17 --out=out/langpacks/ka.zip --no-assessment-resources
+
+pl: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite pl 0.17 --out=out/langpacks/pl.zip --no-assessment-resources
+
+pt-BR: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite pt-BR 0.17 --out=out/langpacks/pt-BR.zip --no-assessment-resources --videolang=pt-BR --contentlang=pt-BR
+
+pt-PT: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite pt-PT 0.17 --out=out/langpacks/pt-PT.zip --no-assessment-resources --videolang=pt-PT --contentlang=pt-PT
 
 xh: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite xh 0.16 --out=out/langpacks/xh.zip --no-assessment-resource
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite xh 0.17 --out=out/langpacks/xh.zip --no-assessment-resource
+
+sw: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite sw 0.17 --out=out/langpacks/sw.zip --no-assessment-resources --videolang=sw --subtitlelang=sw
 
 
 ta: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ta 0.16 --out=out/langpacks/ta.zip --no-assessment-resource
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ta 0.17 --out=out/langpacks/ta.zip --no-assessment-resource
 
-ar: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ar 0.16 --out=out/langpacks/ar.zip --no-assessment-resource
 
 all: supported
 
@@ -85,5 +77,5 @@ publish:
 	scp -P 4242 all_metadata.json $(sshuser)@pantry.learningequality.org:/var/www/downloads/$(project)/$(version)/content/contentpacks/
 
 
-make dubbed-video-csv:
+dubbed-video-csv:
 	./makecontentpacks ./contentpacks/update_dubbed_video_spreadsheet.py

@@ -46,7 +46,7 @@ RESOURCES_DIR = os.path.join(CONTETNPACK_DIR, "resources")
 LANGUAGELOOKUP_FILE = os.path.join(RESOURCES_DIR, "languagelookup.json")
 
 EN_LANG_CODE = "en"
-BUILD_VERSION = "0.17.post1"
+BUILD_VERSION = "0.17.x"
 SPREADSHEET_DEFAULT_VALUE = [
     "SERIAL", "DATE ADDED", "DATE CREATED", "TITLE", "LICENSE", "DOMAIN", "SUBJECT", "TOPIC", "TUTORIAL", "TITLE ID",
     "URL", "DURATION", "REQUIRED FOR", "TRANSCRIPT"]
@@ -97,9 +97,7 @@ def access_google_spreadsheet():
 
 
 def get_en_data():
-    """
-    * Create the en_nodes.json.
-    """
+    """Create the en_nodes.json."""
     en_nodes_path = os.path.join(BUILD_PATH, "en_nodes.json")
     logging.info("Now creating %s..." % en_nodes_path)
 
@@ -164,7 +162,7 @@ def get_video_dict(video_dict=None):
 
 def dubbed_video_node_data(master_node_data, en_node_data):
     """
-    * Create a data structure base on en_node data then assign the respective dubbed video ids from the
+    Create a data structure base on en_node data then assign the respective dubbed video ids from the
     master list node data. This will assure us that the youtube_ids match on there respective subject/titles.
     """
     node_data = []

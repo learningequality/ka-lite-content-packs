@@ -25,3 +25,15 @@ To start development:
 - Language packs located at `/out/langpacks/*.zip`
 
 To run all tests, do a `py.test` from the project's root directory.
+
+#### To update the dubbed video mappings.
+- Head to Google Developers Console and create a new project (or select the one you have.)
+- Google console: https://console.developers.google.com/project
+- Under “API & auth”, in the API enable “Drive API”.
+- Go to “Credentials” and choose “New Credentials > Service Account Key”.
+- Download the json file. Move the .json file in the ~/content-pack-maker/build/credential/
+- Rename the file as credential.json
+- Share the spreadsheet to the client_email. otherwise you can't access the spreadsheet.
+- > Run make dubbed-video-csv
+
+Note: Get the value of the client_mail from the credential.json.
