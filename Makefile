@@ -1,6 +1,6 @@
 contentpack: pex
 	mkdir -p out/
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite en 0.16 --out=out/en.zip --no-subtitles
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite en 0.17 --out=out/en.zip
 	./makecontentpacks minimize-content-pack.py out/en.zip out/en-minimal.zip
 	./makecontentpacks extract_khan_assessment.py out/en.zip
 	./makecontentpacks collectmetadata.py out/ --out=out/all_metadata.json
@@ -24,7 +24,7 @@ es: pex
 	PEX_MODULE=contentpacks ./makecontentpacks ka-lite es 0.17 --out=out/langpacks/es.zip --no-assessment-resources --subtitlelang=es --interfacelang=es-ES --contentlang=es-ES
 
 fr: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite fr 0.17 --out=out/langpacks/fr.zip --no-assessment-resources
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite fr 0.17 --out=out/langpacks/fr.zip
 
 id: pex
 	PEX_MODULE=contentpacks ./makecontentpacks ka-lite id 0.17 --out=out/langpacks/id.zip --no-assessment-resource
@@ -77,5 +77,5 @@ publish:
 	scp -P 4242 all_metadata.json $(sshuser)@pantry.learningequality.org:/var/www/downloads/$(project)/$(version)/content/contentpacks/
 
 
-dubbed-video-csv:
+dubbed-video-csv: pex
 	./makecontentpacks ./contentpacks/update_dubbed_video_spreadsheet.py

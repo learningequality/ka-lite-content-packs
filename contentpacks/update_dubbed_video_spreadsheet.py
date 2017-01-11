@@ -46,7 +46,7 @@ RESOURCES_DIR = os.path.join(CONTETNPACK_DIR, "resources")
 LANGUAGELOOKUP_FILE = os.path.join(RESOURCES_DIR, "languagelookup.json")
 
 EN_LANG_CODE = "en"
-BUILD_VERSION = "0.17.x"
+BUILD_VERSION = "0.17.post1"
 SPREADSHEET_DEFAULT_VALUE = [
     "SERIAL", "DATE ADDED", "DATE CREATED", "TITLE", "LICENSE", "DOMAIN", "SUBJECT", "TOPIC", "TUTORIAL", "TITLE ID",
     "URL", "DURATION", "REQUIRED FOR", "TRANSCRIPT"]
@@ -60,6 +60,7 @@ LE_SUPPORTED_LANG = ['english', 'arabic', 'armenian', 'bahasa indonesia', 'bangl
                      'sinhala', 'tamil', 'telugu', 'thai', 'turkce', 'ukrainian', 'urdu', 'xhosa', 'zulu']
 
 logging.getLogger().setLevel(logging.INFO)
+
 
 def _ensure_dir(path):
     """Create the entire directory path, if it doesn't exist already."""
@@ -83,6 +84,7 @@ def convert_to_json(lang_url, lang_code):
     dump_json = os.path.join(BUILD_PATH, "%s_node_data.json" % lang_code)
     with open(dump_json, "w") as f:
         ujson.dump(node_data, f)
+
 
 def access_google_spreadsheet():
     credentials = None
@@ -205,7 +207,7 @@ def assign_topic_data(node_data):
     topic_data_dict = []
     logging.info("Assign topic base on the khan en language.")
     for key, node in khan_en_data.items():
-        logging.info("Collect all nodes with a key videos.")
+        logging.info("Collecting all nodes with a key videos.")
         if key == "videos":
             for video_obj in node:
                 video_title = video_obj.get("title")
@@ -214,7 +216,7 @@ def assign_topic_data(node_data):
                 video_data_dict.append(data_dict)
         
         if key == "topics":
-            logging.info("Collect all nodes with a key topics.")
+            logging.info("Collecting all nodes with a key topics.")
             for topic_obj in node:
                 topic_title = topic_obj.get("title")
                 topic_id = topic_obj.get("id")
@@ -233,13 +235,13 @@ def assign_topic_data(node_data):
         for topic in topic_dict:
             topic_child_data = topic.get("child_data")
             if topic_child_data.get("id") == obj_id:
-                logging.info("Match topic:(%s) to (%s)" % (obj_id, topic.get("topic_title")))
+                logging.info("Matching topic:(%s) to (%s)" % (obj_id, topic.get("topic_title")))
                 return topic
         return {}
 
     khan_data_dict = []
     seen = set()
-    logging.info("Assign topics to the video data.")
+    logging.info("Assigning topics to the video data.")
     for video_data in video_data_dict:
         video_title = video_data.get("video_title")
         video_id = video_data.get("video_id")
@@ -267,7 +269,7 @@ def assign_topic_data(node_data):
                 node["topic"] = khan_data.get("topic_title")
                 node["subject"] = khan_data.get("subject_title")
     dump_json = os.path.join(BUILD_PATH, "video_node_data.json")
-    logging.info("Save new dubbed_video data in %s" % dump_json)
+    logging.info("Save dubbed_video data in %s" % dump_json)
     with open(dump_json, "w") as f:
         ujson.dump(node_data, f)
                 
@@ -361,11 +363,11 @@ def update_or_create_spreadsheet(spreadsheet=None):
 
 
 def main():
+    spreadsheet = access_google_spreadsheet()
     en_node_data = get_en_data()
     master_node_data = get_video_masterlist()
     node_data = dubbed_video_node_data(master_node_data, en_node_data)
     assign_topic_data(node_data)
-    spreadsheet = access_google_spreadsheet()
     update_or_create_spreadsheet(spreadsheet)
 
     
