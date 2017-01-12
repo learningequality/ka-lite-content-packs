@@ -346,7 +346,7 @@ def update_or_create_spreadsheet(spreadsheet=None):
     for obj in spreadsheet_headers:
         header_value = sheet.find(obj.upper())
         sp_headers_coordinate.append(header_value)
-    logging.info("Header coordinates:", sp_headers_coordinate)
+    logging.info("Header coordinates: %s" % sp_headers_coordinate)
         
     for column_header in sp_headers_coordinate:
         logging.info("Updating values in column %s: " % column_header)
