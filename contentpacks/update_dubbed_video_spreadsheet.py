@@ -5,17 +5,7 @@
 # Note:
     * Lets hard code the supported lang since it is not sure if we use ka_name, native_name or name as the default
     language name.
-    * To create the google credentials do the steps below:
-        1. Head to Google Developers Console and create a new project (or select the one you have.)
-            - Google console: https://console.developers.google.com/project
-        2. Under “API & auth”, in the API enable “Drive API”.
-        3. Go to “Credentials” and choose “New Credentials > Service Account Key”.
-        4. Download the json file. Move the .json file in the ~/content-pack-maker/build/credential/
-        5. Rename the file as credential.json
-    * Share the spreadsheet to the client_email. otherwise you can't access the spreadsheet.
-        - Get the value of the client_mail from the credential.json.
-        
-
+    
 # Reference
     * https://github.com/burnash/gspread
     * https://github.com/burnash/gspread/issues/201
@@ -24,15 +14,16 @@
 import errno
 import gspread
 import json
-import os
 import logging
+import os
 import requests
 import string
 import sys
 import ujson
 
-from oauth2client.service_account import ServiceAccountCredentials
 from contentpacks.khanacademy import API_URL, PROJECTION_KEYS, KA_DOMAIN, download_and_clean_kalite_data
+from oauth2client.service_account import ServiceAccountCredentials
+from optparse import OptionParser
 
 
 PROJECT_PATH = os.path.join(os.getcwd())
@@ -41,12 +32,11 @@ CREDENTIAL_DIR = os.path.join(BUILD_PATH, "credential")
 GOOGLE_CREDENTIAL_FILE = os.path.join(CREDENTIAL_DIR, "credentials.json")
 SCOPE = ['https://spreadsheets.google.com/feeds']
 
-CONTETNPACK_DIR = os.path.join(PROJECT_PATH, "contentpacks")
-RESOURCES_DIR = os.path.join(CONTETNPACK_DIR, "resources")
+CONTETENPACK_DIR = os.path.join(PROJECT_PATH, "contentpacks")
+RESOURCES_DIR = os.path.join(CONTETENPACK_DIR, "resources")
 LANGUAGELOOKUP_FILE = os.path.join(RESOURCES_DIR, "languagelookup.json")
 
 EN_LANG_CODE = "en"
-BUILD_VERSION = "0.17.post1"
 SPREADSHEET_DEFAULT_VALUE = [
     "SERIAL", "DATE ADDED", "DATE CREATED", "TITLE", "LICENSE", "DOMAIN", "SUBJECT", "TOPIC", "TUTORIAL", "TITLE ID",
     "URL", "DURATION", "REQUIRED FOR", "TRANSCRIPT"]
@@ -75,6 +65,16 @@ def _ensure_dir(path):
             pass  # directory already exists
         else:
             raise
+
+
+def get_build_version(arg_version=None):
+    build_version = "0.0.1"
+    if arg_version is not None:
+        build_version = arg_version
+        logging.info("Build version: (%s)" % build_version)
+    else:
+        logging.info("No version specify defaulting to build version: (%s)" % build_version)
+    return build_version
         
 
 def convert_to_json(lang_url, lang_code):
@@ -315,7 +315,7 @@ def update_cell_by_batch(sheet, node_data,  lang_column, node_key, start_col, en
     sheet.update_cells(title_cell_list)
   
         
-def update_or_create_spreadsheet(spreadsheet=None):
+def update_or_create_spreadsheet(spreadsheet=None, spreadsheet_version=None):
     """Map the node_data.json into the spreadsheet"""
     dump_json = os.path.join(BUILD_PATH, "video_node_data.json")
     logging.info("Lets update the spreadsheet using the %s" % dump_json)
@@ -328,11 +328,11 @@ def update_or_create_spreadsheet(spreadsheet=None):
         spreadsheet_headers.append(sup_lang.upper())
     column_length = len(spreadsheet_headers)
     try:
-        logging.info("Create spreadsheet %s with columns:(%s) and rows:(%s)" % (BUILD_VERSION, column_length, node_obj_count))
-        spreadsheet.add_worksheet(title=BUILD_VERSION, rows=node_obj_count, cols=column_length+2)
+        logging.info("Create spreadsheet %s with columns:(%s) and rows:(%s)" % (spreadsheet_version, column_length, node_obj_count))
+        spreadsheet.add_worksheet(title=spreadsheet_version, rows=node_obj_count, cols=column_length+2)
     except Exception as e:
         logging.info(e)
-    sheet = spreadsheet.worksheet(BUILD_VERSION)
+    sheet = spreadsheet.worksheet(spreadsheet_version)
     logging.info("Create sheet %s" % sheet)
     header_cell_range = map_cell_range(start_col=0, end_col=column_length, start_row=3, end_row=3)
     logging.info("Populate spreadsheet header")
@@ -363,13 +363,17 @@ def update_or_create_spreadsheet(spreadsheet=None):
 
 
 def main():
+    parser = OptionParser()
+    parser.add_option("-v", "--version", help="specify the build version of the spreadsheet.")
+    (options, args) = parser.parse_args()
+    
+    spreadsheet_version = get_build_version(options.version)
     spreadsheet = access_google_spreadsheet()
     en_node_data = get_en_data()
     master_node_data = get_video_masterlist()
     node_data = dubbed_video_node_data(master_node_data, en_node_data)
     assign_topic_data(node_data)
-    update_or_create_spreadsheet(spreadsheet)
-
+    update_or_create_spreadsheet(spreadsheet, spreadsheet_version)
     
 if __name__ == "__main__":
     main()
