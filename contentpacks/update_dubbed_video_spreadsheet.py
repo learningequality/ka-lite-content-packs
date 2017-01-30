@@ -1,7 +1,4 @@
 """
-# TODO(mrpau-eduard):
-    * Convert the json to sql to have a offline version of dubbed video mappings.
-
 # Note:
     * Lets hard code the supported lang since it is not sure if we use ka_name, native_name or name as the default
     language name.
@@ -23,7 +20,6 @@ import ujson
 
 from contentpacks.khanacademy import API_URL, PROJECTION_KEYS, KA_DOMAIN, download_and_clean_kalite_data
 from oauth2client.service_account import ServiceAccountCredentials
-from optparse import OptionParser
 
 
 PROJECT_PATH = os.path.join(os.getcwd())
@@ -32,8 +28,8 @@ CREDENTIAL_DIR = os.path.join(BUILD_PATH, "credential")
 GOOGLE_CREDENTIAL_FILE = os.path.join(CREDENTIAL_DIR, "credentials.json")
 SCOPE = ['https://spreadsheets.google.com/feeds']
 
-CONTETENPACK_DIR = os.path.join(PROJECT_PATH, "contentpacks")
-RESOURCES_DIR = os.path.join(CONTETENPACK_DIR, "resources")
+CONTENTPACK_DIR = os.path.join(PROJECT_PATH, "contentpacks")
+RESOURCES_DIR = os.path.join(CONTENTPACK_DIR, "resources")
 LANGUAGELOOKUP_FILE = os.path.join(RESOURCES_DIR, "languagelookup.json")
 
 EN_LANG_CODE = "en"
@@ -67,12 +63,12 @@ def _ensure_dir(path):
             raise
 
 
-def get_build_version(arg_version=None):
-    build_version = "0.0.1"
-    if arg_version is not None:
-        build_version = arg_version
+def get_build_version():
+    build_version = os.getenv("KALITE_BUILD_VERSION")
+    if build_version:
         logging.info("Build version: (%s)" % build_version)
     else:
+        build_version = "0.0.1"
         logging.info("No version specify defaulting to build version: (%s)" % build_version)
     return build_version
         
@@ -363,11 +359,7 @@ def update_or_create_spreadsheet(spreadsheet=None, spreadsheet_version=None):
 
 
 def main():
-    parser = OptionParser()
-    parser.add_option("-v", "--version", help="specify the build version of the spreadsheet.")
-    (options, args) = parser.parse_args()
-    
-    spreadsheet_version = get_build_version(options.version)
+    spreadsheet_version = get_build_version()
     spreadsheet = access_google_spreadsheet()
     en_node_data = get_en_data()
     master_node_data = get_video_masterlist()
