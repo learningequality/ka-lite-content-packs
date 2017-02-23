@@ -12,6 +12,7 @@ import polib
 import ujson
 import zipfile
 import tempfile
+import urllib.request
 import pathlib
 
 
@@ -40,8 +41,10 @@ ASSESSMENT_RESOURCES_ZIP_FOLDER = "khan/"
 
 ASSESSMENT_VERSION_FILENAME = "assessmentitems.version"
 
-
+KALITE_PROJECT = "ka-lite"
+KALITE_SECRET_KEY = os.environ["KALITE_CROWDIN_SECRET_KEY"]
 LANGUAGELOOKUP_DATA = pkgutil.get_data('contentpacks', "resources/languagelookup.json")
+CROWDIN_API = "https://api.crowdin.com/api/project/{crowdin_project}/language-status?key={crowdin_secret_key}&language={lang}&json"
 
 
 class Catalog(dict):
@@ -77,6 +80,35 @@ class Catalog(dict):
         all_strings_count = len(pofile)
 
         return (trans_count / all_strings_count) * 100
+
+    def get_interface_percent_translated(self, lang=None, version=None):
+        """
+        Get the ka-lite crowdin api status and return the translated percentage.
+        """
+        crowdin_url = CROWDIN_API.format(crowdin_project=KALITE_PROJECT, crowdin_secret_key=KALITE_SECRET_KEY,
+                                         lang=lang)
+        crowdin_data = urllib.request.urlopen(crowdin_url)
+        data = ujson.loads(crowdin_data.read())
+        version_files = data["files"][0]
+        total_translated_data = 0
+        pofile_data = 0
+        for key, val in enumerate(version_files["files"]):
+            djangojs_po = "%s-djangojs.po" % version
+            django_po = "%s-django.po" % version
+            if djangojs_po == val.get("name"):
+                for node_key, node_val in val.items():
+                    if node_key == "words_approved":
+                        total_translated_data += int(node_val)
+                    if node_key == "words":
+                        pofile_data += int(node_val)
+            if django_po == val.get("name"):
+                for node_key, node_val in val.items():
+                    if node_key == "words_approved":
+                        total_translated_data += int(node_val)
+                    if node_key == "words":
+                        pofile_data += int(node_val)
+        percent_translated = (total_translated_data / pofile_data) * 100
+        return percent_translated
 
 
 def cache_file(func):
@@ -504,7 +536,7 @@ def generate_kalite_language_pack_metadata(lang: str, version: str, interface_ca
         "code": lang,
         'software_version': version,
         'language_pack_version': int(os.environ.get("CONTENT_PACK_VERSION") or "1"),
-        'percent_translated': interface_catalog.percent_translated,
+        'percent_translated': interface_catalog.get_interface_percent_translated(lang=lang, version=version),
         'topic_tree_translated': content_catalog.percent_translated,
         'subtitle_count': len(subtitles),
         "name": get_lang_name(lang),
