@@ -85,7 +85,7 @@ class Catalog(dict):
 
     def compute_interface_translated_percentage(self, lang, version):
         """
-        Fetch the translated status from crowdin api then calculate the percentage of the translated words from
+        Fetch the translated status from CrowdIn API then calculate the percentage of the translated words from
         the {version}-djangojs.po and {version}-django.po.
         Returns the calculated percentage.
         """
