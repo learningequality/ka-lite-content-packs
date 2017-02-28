@@ -528,7 +528,7 @@ def separate_exercise_types(node_data):
            node_data
 
 
-def generate_kalite_language_pack_metadata(lang: str, version: str, interface_catalog: Catalog,
+def generate_kalite_language_pack_metadata(lang: str, version: str, sublangargs: dict, interface_catalog: Catalog,
                                            content_catalog: Catalog, subtitles: list, dubbed_video_count: int):
     """
     Create the language pack metadata based on the files passed in.
@@ -536,12 +536,14 @@ def generate_kalite_language_pack_metadata(lang: str, version: str, interface_ca
 
     # language packs are automatically beta if they have no dubbed videos and subtitles
     is_beta = dubbed_video_count == 0 and len(subtitles) == 0
+    interface_lang = sublangargs["interface_lang"]
 
     metadata = {
         "code": lang,
         'software_version': version,
         'language_pack_version': int(os.environ.get("CONTENT_PACK_VERSION") or "1"),
-        'percent_translated': interface_catalog.compute_interface_translated_percentage(lang=lang, version=version),
+        'percent_translated': interface_catalog.compute_interface_translated_percentage(lang=interface_lang or lang,
+                                                                                        version=version),
         'topic_tree_translated': content_catalog.percent_translated,
         'subtitle_count': len(subtitles),
         "name": get_lang_name(lang),

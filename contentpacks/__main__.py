@@ -58,7 +58,7 @@ def make_language_pack(lang, version, sublangargs, filename, ka_domain, no_asses
 
     node_data = remove_untranslated_exercises(node_data, translated_html_exercise_ids, assessment_data) if lang != "en" else node_data
 
-    pack_metadata = generate_kalite_language_pack_metadata(lang, version, interface_catalog, content_catalog, subtitles,
+    pack_metadata = generate_kalite_language_pack_metadata(lang, version, sublangargs, interface_catalog, content_catalog, subtitles,
                                                            dubbed_video_count)
 
     bundle_language_pack(str(filename), node_data, interface_catalog, interface_catalog,
