@@ -100,19 +100,21 @@ class Catalog(dict):
         djangojs_po = "%s-djangojs.po" % version
         django_po = "%s-django.po" % version
         # Loop on the `files` dict to get the translated status.
-        for filenames in version_files.get("files"):
+        for filename in version_files.get("files"):
             # Get only the {version}-djangojs.po and {version}-django.po data.
-            if djangojs_po == filenames.get("name"):
-                total_words_approved += Decimal(filenames.get("words_approved"))
-                total_words += Decimal(filenames.get("words"))
-            if django_po == filenames.get("name"):
-                total_words_approved += Decimal(filenames.get("words_approved"))
-                total_words += Decimal(filenames.get("words"))
+            if djangojs_po == filename.get("name"):
+                total_words_approved += Decimal(filename.get("words_approved"))
+                total_words += Decimal(filename.get("words"))
+            if django_po == filename.get("name"):
+                total_words_approved += Decimal(filename.get("words_approved"))
+                total_words += Decimal(filename.get("words"))
         if total_words == 0:
             logging.info("Check the api status for lang:(%s) and version:(%s).The total_words returns 0 value." %
                          (lang, version))
-            raise ZeroDivisionError
-        percent_translated = (total_words_approved / total_words) * 100
+            # Since the `total_words` is 0. The `percent_translated` will default to 0 to avoid Division by zero error.
+            percent_translated = total_words
+        else:
+            percent_translated = (total_words_approved / total_words) * 100
         return percent_translated
 
 
