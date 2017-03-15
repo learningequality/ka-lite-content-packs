@@ -1,18 +1,21 @@
 import copy
 import logging
 import os
+import pathlib
+import polib
 import pkgutil
 import re
 import requests
+import urllib.request
+import ujson
+import tempfile
+import zipfile
+
+from decimal import Decimal
 from functools import partial
 from urllib.parse import urlparse
 from contentpacks.models import Item, AssessmentItem
 from peewee import Using, SqliteDatabase, fn
-import polib
-import ujson
-import zipfile
-import tempfile
-import pathlib
 
 
 class UnexpectedKindError(Exception):
@@ -40,8 +43,10 @@ ASSESSMENT_RESOURCES_ZIP_FOLDER = "khan/"
 
 ASSESSMENT_VERSION_FILENAME = "assessmentitems.version"
 
-
+KALITE_PROJECT = "ka-lite"
+KALITE_SECRET_KEY = os.environ["KALITE_CROWDIN_SECRET_KEY"]
 LANGUAGELOOKUP_DATA = pkgutil.get_data('contentpacks', "resources/languagelookup.json")
+CROWDIN_API = "https://api.crowdin.com/api/project/{crowdin_project}/language-status?key={crowdin_secret_key}&language={lang}&json"
 
 
 class Catalog(dict):
@@ -77,6 +82,40 @@ class Catalog(dict):
         all_strings_count = len(pofile)
 
         return (trans_count / all_strings_count) * 100
+
+    def compute_interface_translated_percentage(self, lang, version):
+        """
+        Fetch the translated status from CrowdIn API then calculate the percentage of the translated words from
+        the {version}-djangojs.po and {version}-django.po.
+        Returns the calculated percentage.
+        """
+        crowdin_url = CROWDIN_API.format(crowdin_project=KALITE_PROJECT, crowdin_secret_key=KALITE_SECRET_KEY,
+                                         lang=lang)
+        logging.info("Fetch crowdin status from (%s)" % crowdin_url)
+        crowdin_data = urllib.request.urlopen(crowdin_url)
+        data = ujson.loads(crowdin_data.read())
+        version_files = data["files"][0]
+        total_words_approved = 0
+        total_words = 0
+        djangojs_po = "%s-djangojs.po" % version
+        django_po = "%s-django.po" % version
+        # Loop on the `files` dict to get the translated status.
+        for filename in version_files.get("files"):
+            # Get only the {version}-djangojs.po and {version}-django.po data.
+            if djangojs_po == filename.get("name"):
+                total_words_approved += Decimal(filename.get("words_approved"))
+                total_words += Decimal(filename.get("words"))
+            if django_po == filename.get("name"):
+                total_words_approved += Decimal(filename.get("words_approved"))
+                total_words += Decimal(filename.get("words"))
+        if total_words == 0:
+            logging.info("Check the api status for lang:(%s) and version:(%s).The total_words returns 0 value." %
+                         (lang, version))
+            # Since the `total_words` is 0. The `percent_translated` will default to 0 to avoid Division by zero error.
+            percent_translated = total_words
+        else:
+            percent_translated = (total_words_approved / total_words) * 100
+        return percent_translated
 
 
 def cache_file(func):
@@ -491,7 +530,7 @@ def separate_exercise_types(node_data):
            node_data
 
 
-def generate_kalite_language_pack_metadata(lang: str, version: str, interface_catalog: Catalog,
+def generate_kalite_language_pack_metadata(lang: str, version: str, sublangargs: dict, interface_catalog: Catalog,
                                            content_catalog: Catalog, subtitles: list, dubbed_video_count: int):
     """
     Create the language pack metadata based on the files passed in.
@@ -499,12 +538,14 @@ def generate_kalite_language_pack_metadata(lang: str, version: str, interface_ca
 
     # language packs are automatically beta if they have no dubbed videos and subtitles
     is_beta = dubbed_video_count == 0 and len(subtitles) == 0
+    interface_lang = sublangargs["interface_lang"]
 
     metadata = {
         "code": lang,
         'software_version': version,
         'language_pack_version': int(os.environ.get("CONTENT_PACK_VERSION") or "1"),
-        'percent_translated': interface_catalog.percent_translated,
+        'percent_translated': interface_catalog.compute_interface_translated_percentage(lang=interface_lang or lang,
+                                                                                        version=version),
         'topic_tree_translated': content_catalog.percent_translated,
         'subtitle_count': len(subtitles),
         "name": get_lang_name(lang),
