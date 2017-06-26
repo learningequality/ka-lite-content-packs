@@ -54,7 +54,7 @@ def make_language_pack(lang, version, sublangargs, filename, ka_domain, no_asses
     node_data = remove_nonexistent_assessment_items_from_exercises(node_data, all_assessment_data)
 
     node_data = clean_node_data_items(node_data)
-    assessment_data = list(translate_assessment_item_text(all_assessment_data, content_catalog)) if lang != "en" else all_assessment_data
+    assessment_data = list(all_assessment_data)
 
     node_data = remove_untranslated_exercises(node_data, translated_html_exercise_ids, assessment_data) if lang != "en" else node_data
 

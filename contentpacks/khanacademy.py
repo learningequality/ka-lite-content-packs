@@ -895,6 +895,14 @@ def retrieve_assessment_item_data(assessment_item, lang=None, force=False, no_it
     with open(path, "r") as f:
         item_data = json.load(f)
 
+    # TEMP HACK: translate the item text here before URLs are localized, because otherwise, later, Crowdin strings no longer match
+    if lang != "en" and content_catalog is not None:
+        item_data = list(translate_assessment_item_text([item_data], content_catalog))
+        if item_data:
+            item_data = item_data[0]
+        else:  # if no translation, return empty assessment_item
+            return {}, []
+
     image_urls = find_all_image_urls(item_data)
     graphie_urls = find_all_graphie_urls(item_data)
     urls = list(itertools.chain(image_urls, graphie_urls))
