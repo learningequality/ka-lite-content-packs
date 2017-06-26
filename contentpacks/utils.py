@@ -230,12 +230,7 @@ def smart_translate_item_data(item_data: dict, gettext):
     """
     translate_item_fn = partial(smart_translate_item_data, gettext=gettext)
 
-    # TODO (aronasorman): implement tests
-    # just translate strings immediately
-    if isinstance(item_data, str):
-        return gettext(item_data)
-
-    elif isinstance(item_data, list):
+    if isinstance(item_data, list):
         return list(map(translate_item_fn, item_data))
 
     elif isinstance(item_data, dict):
@@ -248,7 +243,7 @@ def smart_translate_item_data(item_data: dict, gettext):
             elif isinstance(field_data, list):
                 item_data[field] = list(map(translate_item_fn, field_data))
 
-        return item_data
+    return item_data
 
 
 def remove_untranslated_exercises(nodes, html_ids, translated_assessment_data):
