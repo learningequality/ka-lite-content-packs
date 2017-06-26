@@ -7,6 +7,7 @@ import pkgutil
 import re
 import requests
 import urllib.request
+import json
 import ujson
 import tempfile
 import zipfile
@@ -208,13 +209,13 @@ def translate_assessment_item_text(items: list, catalog: Catalog):
     for item in items:
         item = copy.copy(item)
 
-        item_data = ujson.loads(item["item_data"])
+        item_data = json.loads(item["item_data"])
         try:
             translated_item_data = smart_translate_item_data(item_data, gettext)
         except NotTranslatable:
             continue
         else:
-            item["item_data"] = ujson.dumps(translated_item_data, gettext)
+            item["item_data"] = json.dumps(translated_item_data, gettext)
             yield item
 
 
