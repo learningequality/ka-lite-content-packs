@@ -78,7 +78,8 @@ VIDEO_ATTRIBUTES = [
     'slug',
     'title',
     'translatedYoutubeLang',
-    'youtubeId'
+    'youtubeId',
+    'descriptionHtml'
 ]
 
 PROJECTION_KEYS = OrderedDict([

@@ -14,6 +14,7 @@ import zipfile
 
 from decimal import Decimal
 from functools import partial
+from html2text import html2text
 from urllib.parse import urlparse
 from contentpacks.models import Item, AssessmentItem
 from peewee import Using, SqliteDatabase, fn
@@ -37,6 +38,7 @@ NODE_FIELDS_TO_TRANSLATE = [
     "title",
     "description",
     "display_name",
+    "descriptionHtml"
 ]
 
 
@@ -180,6 +182,9 @@ def translate_nodes(nodes: list, catalog: Catalog) -> list:
             if msgid:
                 try:
                     node[field] = catalog[msgid]
+                    # use descriptionHtml field because some untranslated strings for videos have html in them
+                    if field == "descriptionHtml":
+                        node["description"] = html2text(node[field])
                 except KeyError:
                     logging.debug("could not translate {field} for {title}".format(field=field, title=node["title"]))
 
