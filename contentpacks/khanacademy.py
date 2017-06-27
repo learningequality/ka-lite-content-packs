@@ -27,7 +27,7 @@ from math import ceil, log, exp
 
 from contentpacks.utils import NodeType, download_and_cache_file, Catalog, cache_file,\
     is_video_node_dubbed, get_lang_name, NodeType, get_lang_native_name,\
-    get_lang_ka_name, get_lang_code_list
+    get_lang_ka_name, get_lang_code_list, translate_assessment_item_text
 from contentpacks.models import AssessmentItem
 from contentpacks.generate_dubbed_video_mappings import main, DUBBED_VIDEOS_MAPPING_FILEPATH
 
@@ -867,7 +867,7 @@ def _get_content_by_readable_id(readable_id):
         return CONTENT_BY_READABLE_ID.get(re.sub("\-+", "-", readable_id).lower())
 
 
-def retrieve_assessment_item_data(assessment_item, lang=None, force=False, no_item_data=False, no_item_resources=False) -> (dict, [str]):
+def retrieve_assessment_item_data(assessment_item, lang=None, force=False, no_item_data=False, no_item_resources=False, content_catalog=None) -> (dict, [str]):
     """
     Retrieve assessment item data and images for a single assessment item.
     :param assessment_item: id of assessment item
@@ -928,7 +928,7 @@ def retrieve_assessment_item_data(assessment_item, lang=None, force=False, no_it
     return item_data, file_paths
 
 
-def retrieve_all_assessment_item_data(lang=None, force=False, node_data=None, no_item_data=False, no_item_resources=False) -> ([dict], set):
+def retrieve_all_assessment_item_data(lang=None, force=False, node_data=None, no_item_data=False, no_item_resources=False, content_catalog=None) -> ([dict], set):
     """
     Retrieve Khan Academy assessment items and associated images from KA.
     :param lang: language to retrieve data in
@@ -944,7 +944,7 @@ def retrieve_all_assessment_item_data(lang=None, force=False, node_data=None, no
     def _download_item_data_and_files(assessment_item):
         item_id = assessment_item.get("id")
         try:
-            item_data, file_paths = retrieve_assessment_item_data(item_id, lang=lang, force=force, no_item_data=no_item_data, no_item_resources=no_item_resources)
+            item_data, file_paths = retrieve_assessment_item_data(item_id, lang=lang, force=force, no_item_data=no_item_data, no_item_resources=no_item_resources, content_catalog=content_catalog)
             return item_data, file_paths
         except requests.RequestException as e:
             logging.warning("got requests exception: {}".format(e))

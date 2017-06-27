@@ -49,6 +49,7 @@ def make_language_pack(lang, version, sublangargs, filename, ka_domain, no_asses
         no_item_resources=no_assessment_resources,
         node_data=node_data,
         lang=lang,
+        content_catalog=content_catalog,
     )
     all_assessment_data = list(remove_assessment_data_with_empty_widgets(all_assessment_data))
     node_data = remove_nonexistent_assessment_items_from_exercises(node_data, all_assessment_data)
