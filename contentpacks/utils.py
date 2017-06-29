@@ -7,12 +7,14 @@ import pkgutil
 import re
 import requests
 import urllib.request
+import json
 import ujson
 import tempfile
 import zipfile
 
 from decimal import Decimal
 from functools import partial
+from html2text import html2text
 from urllib.parse import urlparse
 from contentpacks.models import Item, AssessmentItem
 from peewee import Using, SqliteDatabase, fn
@@ -36,6 +38,7 @@ NODE_FIELDS_TO_TRANSLATE = [
     "title",
     "description",
     "display_name",
+    "descriptionHtml"
 ]
 
 
@@ -179,6 +182,9 @@ def translate_nodes(nodes: list, catalog: Catalog) -> list:
             if msgid:
                 try:
                     node[field] = catalog[msgid]
+                    # use descriptionHtml field because some untranslated strings for videos have html in them
+                    if field == "descriptionHtml":
+                        node["description"] = html2text(node[field])
                 except KeyError:
                     logging.debug("could not translate {field} for {title}".format(field=field, title=node["title"]))
 
@@ -208,13 +214,13 @@ def translate_assessment_item_text(items: list, catalog: Catalog):
     for item in items:
         item = copy.copy(item)
 
-        item_data = ujson.loads(item["item_data"])
+        item_data = json.loads(item["item_data"])
         try:
             translated_item_data = smart_translate_item_data(item_data, gettext)
         except NotTranslatable:
             continue
         else:
-            item["item_data"] = ujson.dumps(translated_item_data, gettext)
+            item["item_data"] = json.dumps(translated_item_data, gettext)
             yield item
 
 
@@ -230,12 +236,7 @@ def smart_translate_item_data(item_data: dict, gettext):
     """
     translate_item_fn = partial(smart_translate_item_data, gettext=gettext)
 
-    # TODO (aronasorman): implement tests
-    # just translate strings immediately
-    if isinstance(item_data, str):
-        return gettext(item_data)
-
-    elif isinstance(item_data, list):
+    if isinstance(item_data, list):
         return list(map(translate_item_fn, item_data))
 
     elif isinstance(item_data, dict):
@@ -248,7 +249,7 @@ def smart_translate_item_data(item_data: dict, gettext):
             elif isinstance(field_data, list):
                 item_data[field] = list(map(translate_item_fn, field_data))
 
-        return item_data
+    return item_data
 
 
 def remove_untranslated_exercises(nodes, html_ids, translated_assessment_data):
