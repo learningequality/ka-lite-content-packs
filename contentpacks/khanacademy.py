@@ -22,6 +22,7 @@ import ujson
 import pkgutil
 import sys
 import yaml
+import youtube_dl
 
 from math import ceil, log, exp
 
@@ -155,25 +156,23 @@ def retrieve_subtitles(videos: list, lang=EN_LANG_CODE, force=False, threads=NUM
     # videos => contains list of youtube ids
     """return list of youtubeids that were downloaded"""
     lang = lang.lower()
+    
     def _download_subtitle_data(youtube_id):
         logging.info("trying to download subtitle for %s" % youtube_id)
-        # Store the file temporarily, then rename it later since it has a wrong extension used 
-        # e.g {youtube_id}. {Lang}. vtt so we need to rename it.
-        dump_file = "%s/%s/%s" % (SUBTITLE_DIR, lang, youtube_id)
-        download_cmd = "youtube-dl --sub-format 'vtt' --sub-lang '{lang}' --write-srt -o '{path}'  --skip-download 'https://www.youtube.com/watch?v={youtube_id}'".format(
-            path=dump_file, lang=lang, youtube_id=youtube_id)
-        os.system(download_cmd)
-        src = "%s.%s.vtt" % (dump_file, lang)
-        if os.path.isfile(src):
-            subtitle_path = "%s.vtt" % (dump_file)
-            os.rename(src, subtitle_path)
+        # Download the subtitles and return youtube_id, subtitle_path
+        subtitle_path = "%s/%s/%s" % (SUBTITLE_DIR, lang, youtube_id)
+        ydl_opts = {
+            "subtitlesformat": lang,
+            "outtmpl": "%s.vtt" % subtitle_path,
+        }
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            ydl.download(['http://www.youtube.com/watch?v=%s' % youtube_id])
+        if os.path.isfile(subtitle_path):
             return youtube_id, subtitle_path
         else:
             logging.info("No available subtitle for (%s)" % youtube_id)
             pass
-
     pools = ThreadPool(processes=threads)
-
     poolresult = pools.map(_download_subtitle_data, videos)
     subtitle_data = dict(s for s in poolresult if s) # remove empty return values
     return subtitle_data
