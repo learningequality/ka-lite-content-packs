@@ -160,10 +160,10 @@ def retrieve_subtitles(videos: list, lang=EN_LANG_CODE, force=False, threads=NUM
     def _download_subtitle_data(youtube_id):
         logging.info("trying to download subtitle for %s" % youtube_id)
         # Download the subtitles and return youtube_id, subtitle_path
-        subtitle_path = "%s/%s/%s" % (SUBTITLE_DIR, lang, youtube_id)
+        subtitle_path = "%s/%s/%s.vtt" % (SUBTITLE_DIR, lang, youtube_id)
         ydl_opts = {
             "subtitlesformat": lang,
-            "outtmpl": "%s.vtt" % subtitle_path,
+            "outtmpl": subtitle_path,
         }
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             ydl.download(['http://www.youtube.com/watch?v=%s' % youtube_id])
