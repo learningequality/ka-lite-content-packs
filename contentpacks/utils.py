@@ -38,7 +38,7 @@ NODE_FIELDS_TO_TRANSLATE = [
     "title",
     "description",
     "display_name",
-    "descriptionHtml"
+    "description_html"
 ]
 
 
@@ -182,8 +182,8 @@ def translate_nodes(nodes: list, catalog: Catalog) -> list:
             if msgid:
                 try:
                     node[field] = catalog[msgid]
-                    # use descriptionHtml field because some untranslated strings for videos have html in them
-                    if field == "descriptionHtml":
+                    # use description_html field because some untranslated strings for videos have html in them
+                    if field == "description_html":
                         node["description"] = html2text(node[field])
                 except KeyError:
                     logging.debug("could not translate {field} for {title}".format(field=field, title=node["title"]))
