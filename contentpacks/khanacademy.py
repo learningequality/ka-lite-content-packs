@@ -22,12 +22,13 @@ import ujson
 import pkgutil
 import sys
 import yaml
+import youtube_dl
 
 from math import ceil, log, exp
 
 from contentpacks.utils import NodeType, download_and_cache_file, Catalog, cache_file,\
     is_video_node_dubbed, get_lang_name, NodeType, get_lang_native_name,\
-    get_lang_ka_name, get_lang_code_list, translate_assessment_item_text
+    get_lang_ka_name, get_lang_code_list, translate_assessment_item_text, _ensure_dir
 from contentpacks.models import AssessmentItem
 from contentpacks.generate_dubbed_video_mappings import main, DUBBED_VIDEOS_MAPPING_FILEPATH
 
@@ -99,6 +100,9 @@ LangpackResources = collections.namedtuple(
      "ka_catalog",
      ])
 
+PROJECT_PATH = os.path.join(os.getcwd())
+BUILD_PATH = os.path.join(PROJECT_PATH, "build")
+SUBTITLE_DIR = os.path.join(BUILD_PATH, "subtitles")
 
 # monkey patch polib.POEntry.merge
 def new_merge(self, other):
@@ -147,57 +151,40 @@ def retrieve_language_resources(version: str, sublangargs: dict, ka_domain: str,
     return LangpackResources(node_data, subtitle_data, kalite_catalog, ka_catalog)
 
 
-@cache_file
-def retrieve_subtitle_meta_data(url, path):
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-    except requests.HTTPError:
-        raise
-
-    content = ujson.loads(response.content)
-
-    if not content.get("objects"):
-        raise KeyError
-
-    amara_id = content["objects"][0]["id"]
-
-    with open(path, 'w') as f:
-        f.write(amara_id)
-
 
 def retrieve_subtitles(videos: list, lang=EN_LANG_CODE, force=False, threads=NUM_PROCESSES) -> dict:
     # videos => contains list of youtube ids
     """return list of youtubeids that were downloaded"""
-    lang = lang.lower()         # Amara likes lowercase codes
+    lang = lang.lower()
+    
     def _download_subtitle_data(youtube_id):
-
         logging.info("trying to download subtitle for %s" % youtube_id)
-        request_url = "https://www.amara.org/api2/partners/videos/?format=json&video_url=http://www.youtube.com/watch?v=%s" % (
-            youtube_id
-        )
-
-        try:
-            amara_id_file = retrieve_subtitle_meta_data(request_url, filename="subtitles/meta_data/{youtube_id}".format(
-                youtube_id=youtube_id))
-            with open(amara_id_file, 'r') as f:
-                amara_id = f.read()
-            subtitle_download_uri = "https://www.amara.org/api/videos/%s/languages/%s/subtitles/?format=vtt" % (
-                amara_id, lang)
-            filename = "subtitles/{lang}/{youtube_id}.vtt".format(lang=lang, youtube_id=youtube_id)
-            subtitle_path = download_and_cache_file(subtitle_download_uri, filename=filename, ignorecache=False)
-            logging.info("subtitle path: {}".format(subtitle_path))
-            return youtube_id, subtitle_path
-        except (requests.exceptions.RequestException, KeyError, urllib.error.HTTPError, urllib.error.URLError) as e:
-            logging.info("got error while downloading subtitles: {}".format(e))
-            pass
-
+        # Download the subtitles and return youtube_id, subtitle_path
+        dump_dir = os.path.join(SUBTITLE_DIR, lang)
+        # Create dump_dir if the directory doesn't exist.
+        _ensure_dir(dump_dir)
+        subtitle_path = "{path}/{id}.vtt".format(path=dump_dir, id=youtube_id)
+        download_file = "{path}/{id}.{lang}.vtt".format(path=dump_dir, id=youtube_id, lang=lang)
+        ydl_opts = {
+            "subtitlesformat": "vtt",
+            "outtmpl": "{path}/{id}.vtt".format(path=dump_dir, id=youtube_id),
+            "writesubtitles": True,
+            "skip_download": True,
+            "subtitleslangs": [lang],
+        }
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            ydl.download(['http://www.youtube.com/watch?v=%s' % youtube_id])
+            if os.path.isfile(download_file):
+                # Lets rename the download_file because it uses the wrong extension e.g {youttube_id}.{lang}.vtt
+                logging.info("Rename %s -> %s" % (download_file, subtitle_path))
+                os.rename(download_file, subtitle_path)
+                return youtube_id, subtitle_path
+            else:
+                logging.info("No available subtitle for (%s)" % youtube_id)
+                pass
     pools = ThreadPool(processes=threads)
-
     poolresult = pools.map(_download_subtitle_data, videos)
     subtitle_data = dict(s for s in poolresult if s) # remove empty return values
-
     return subtitle_data
 
 
