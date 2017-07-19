@@ -28,7 +28,7 @@ from math import ceil, log, exp
 
 from contentpacks.utils import NodeType, download_and_cache_file, Catalog, cache_file,\
     is_video_node_dubbed, get_lang_name, NodeType, get_lang_native_name,\
-    get_lang_ka_name, get_lang_code_list, translate_assessment_item_text
+    get_lang_ka_name, get_lang_code_list, translate_assessment_item_text, _ensure_dir
 from contentpacks.models import AssessmentItem
 from contentpacks.generate_dubbed_video_mappings import main, DUBBED_VIDEOS_MAPPING_FILEPATH
 
@@ -160,18 +160,28 @@ def retrieve_subtitles(videos: list, lang=EN_LANG_CODE, force=False, threads=NUM
     def _download_subtitle_data(youtube_id):
         logging.info("trying to download subtitle for %s" % youtube_id)
         # Download the subtitles and return youtube_id, subtitle_path
-        subtitle_path = "%s/%s/%s.vtt" % (SUBTITLE_DIR, lang, youtube_id)
+        dump_dir = os.path.join(SUBTITLE_DIR, lang)
+        # Create dump_dir if the directory doesn't exist.
+        _ensure_dir(dump_dir)
+        subtitle_path = "{path}/{id}.vtt".format(path=dump_dir, id=youtube_id)
+        download_file = "{path}/{id}.{lang}.vtt".format(path=dump_dir, id=youtube_id, lang=lang)
         ydl_opts = {
-            "subtitlesformat": lang,
-            "outtmpl": subtitle_path,
+            "subtitlesformat": "vtt",
+            "outtmpl": "{path}/{id}.vtt".format(path=dump_dir, id=youtube_id),
+            "writesubtitles": True,
+            "skip_download": True,
+            "subtitleslangs": [lang],
         }
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             ydl.download(['http://www.youtube.com/watch?v=%s' % youtube_id])
-        if os.path.isfile(subtitle_path):
-            return youtube_id, subtitle_path
-        else:
-            logging.info("No available subtitle for (%s)" % youtube_id)
-            pass
+            if os.path.isfile(download_file):
+                # Lets rename the download_file because it uses the wrong extension e.g {youttube_id}.{lang}.vtt
+                logging.info("Rename %s -> %s" % (download_file, subtitle_path))
+                os.rename(download_file, subtitle_path)
+                return youtube_id, subtitle_path
+            else:
+                logging.info("No available subtitle for (%s)" % youtube_id)
+                pass
     pools = ThreadPool(processes=threads)
     poolresult = pools.map(_download_subtitle_data, videos)
     subtitle_data = dict(s for s in poolresult if s) # remove empty return values

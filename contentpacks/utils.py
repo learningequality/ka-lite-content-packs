@@ -1,4 +1,5 @@
 import copy
+import errno
 import logging
 import os
 import pathlib
@@ -772,3 +773,18 @@ def clean_node_data_items(node_data):
         else:
             new_node_data.append(node)
     return new_node_data
+
+
+def _ensure_dir(path):
+    """Create the entire directory path, if it doesn't exist already."""
+    try:
+        os.makedirs(path)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            # file already exists
+            if not os.path.isdir(path):
+                # file exists but is not a directory
+                raise OSError(errno.ENOTDIR, "Not a directory: '%s'" % path)
+            pass  # directory already exists
+        else:
+            raise
