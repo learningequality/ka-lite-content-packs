@@ -171,6 +171,8 @@ def retrieve_subtitles(videos: list, lang=EN_LANG_CODE, force=False, threads=NUM
             "writesubtitles": True,
             "skip_download": True,
             "subtitleslangs": [lang],
+            "ignoreerrors": True,
+
         }
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             ydl.download(['http://www.youtube.com/watch?v=%s' % youtube_id])
