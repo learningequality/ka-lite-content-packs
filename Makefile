@@ -35,6 +35,12 @@ hi: pex
 ka: pex
 	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ka 0.17 --out=out/langpacks/ka.zip --no-assessment-resources
 
+kn: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite kn 0.17 --out=out/langpacks/kn.zip --no-assessment-resources
+
+my: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite my 0.17 --out=out/langpacks/my.zip --no-assessment-resources
+
 pl: pex
 	PEX_MODULE=contentpacks ./makecontentpacks ka-lite pl 0.17 --out=out/langpacks/pl.zip --no-assessment-resources
 
@@ -55,10 +61,14 @@ ta: pex
 	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ta 0.17 --out=out/langpacks/ta.zip --no-assessment-resources
 
 
+zul: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite zul 0.17 --out=out/langpacks/zul.zip --no-assessment-resources
+
+
 all: supported
 
 
-langpacks: pt-PT es pt-BR bn de fr da bg id hi xh ta ka sw
+langpacks: pt-PT es pt-BR bn de fr da bg id hi xh ta ka sw ar kn my pl
 	unzip -p out/en.zip content.db > content.db
 	./makecontentpacks collectmetadata.py out/langpacks/ --out=out/all_metadata.json
 
