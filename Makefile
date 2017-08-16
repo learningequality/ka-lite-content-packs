@@ -61,8 +61,8 @@ ta: pex
 	PEX_MODULE=contentpacks ./makecontentpacks ka-lite ta 0.17 --out=out/langpacks/ta.zip --no-assessment-resources
 
 
-zul: pex
-	PEX_MODULE=contentpacks ./makecontentpacks ka-lite zul 0.17 --out=out/langpacks/zul.zip --no-assessment-resources
+zu: pex
+	PEX_MODULE=contentpacks ./makecontentpacks ka-lite zu 0.17 --out=out/langpacks/zu.zip --no-assessment-resources
 
 
 all: supported
