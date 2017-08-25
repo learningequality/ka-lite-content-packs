@@ -1,4 +1,5 @@
 import copy
+import datetime
 import errno
 import logging
 import os
@@ -545,7 +546,7 @@ def generate_kalite_language_pack_metadata(lang: str, version: str, sublangargs:
     metadata = {
         "code": lang,
         'software_version': version,
-        'language_pack_version': int(os.environ.get("CONTENT_PACK_VERSION") or "1"),
+        'language_pack_version': "{:%Y%m%d}".format(datetime.datetime.now()),
         'percent_translated': interface_catalog.compute_interface_translated_percentage(lang=interface_lang or lang,
                                                                                         version=version),
         'topic_tree_translated': content_catalog.percent_translated,
